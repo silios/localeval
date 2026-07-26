@@ -152,6 +152,17 @@ python -m localeval compare runs/mmlu/20260726T191940Z runs/mmlu/20260726T193151
 Positive deltas (green) mean run 2 did better - more correct answers,
 higher accuracy, lower TTFT. Negative deltas (red) mean a regression.
 
+### Listing past runs
+
+`localeval list` walks the `runs/` directory and prints a table of every
+completed run with mode, model, timestamp, score, star rating, and error
+count. Useful for finding a specific run to compare against or resume.
+
+```bash
+python -m localeval list
+python -m localeval list --filter "qwen*"
+```
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |

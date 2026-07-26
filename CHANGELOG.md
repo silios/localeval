@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `localeval resume <run_dir>`: reruns only the items still marked
 
+- `localeval list`: walks the `runs/` directory and prints a Rich table
+  of every completed run: mode, model, timestamp, score, star rating,
+  and error count. Optional `--filter` for model name glob (e.g.
+  `--filter "qwen*"`). Tolerant of older `summary.json` files that may
+  lack fields added in later versions.
+
 - `--dry-run` flag for `mmlu`, `code`, `ifeval`, and `all`: loads and
   validates the question/task/case bank without sending a single
   request. Prints item counts, category breakdowns, and flags unknown
@@ -131,9 +137,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   biggest differentiator between local models right now.
 - `--system-prompt` / `--prompt-file` override for all modes, unlocking
   prompt engineering experiments without code changes.
-- `localeval list-runs`: walk `runs/` and print a summary table (mode,
-  model, timestamp, score, rating, elapsed) with optional
-  `--filter model=Qwen*`, for quick navigation of past results.
 - Optional agentic (multi-turn) generation loop for `code` mode.
 
 ## [0.1.0] - 2026-07-26

@@ -110,27 +110,27 @@ def score_fields(mode: str, summary: dict) -> dict:
         total = summary["correct"] + summary["wrong"]
         counts = {
             "pass": summary["correct"],
-            "partial": summary["truncated"] + summary["no_answer"],
+            "partial": summary.get("truncated", 0) + summary.get("no_answer", 0),
             "fail": summary["wrong"],
-            "error": summary["error"],
+            "error": summary.get("error", 0),
         }
     elif mode == "code":
         earned = summary["pass"]
         total = summary["pass"] + summary["fail"]
         counts = {
             "pass": summary["pass"],
-            "partial": summary["timeout"] + summary["no_code_block"] + summary["truncated"],
+            "partial": summary.get("timeout", 0) + summary.get("no_code_block", 0) + summary.get("truncated", 0),
             "fail": summary["fail"],
-            "error": summary["error"],
+            "error": summary.get("error", 0),
         }
     elif mode == "ifeval":
         earned = summary["pass"]
         total = summary["pass"] + summary["fail"]
         counts = {
             "pass": summary["pass"],
-            "partial": summary["other"] + summary["truncated"],
+            "partial": summary.get("other", 0) + summary.get("truncated", 0),
             "fail": summary["fail"],
-            "error": summary["error"],
+            "error": summary.get("error", 0),
         }
     else:
         raise ValueError(f"unknown mode: {mode}")

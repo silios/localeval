@@ -282,3 +282,29 @@ def print_compare(result: dict, model_a: str = "", model_b: str = "") -> None:
                     d_text = "-"
                 table.add_row(label, a_val, b_val, d_text)
         console.print(table)
+
+
+def print_list_runs(runs: list) -> None:
+    """Print a table of past runs with mode, model, timestamp, score, rating.
+
+    runs: list of dicts as returned by __main__.list_runs().
+    """
+    table = Table(title="Past Runs", title_style="bold", box=None)
+    table.add_column("Mode")
+    table.add_column("Model")
+    table.add_column("Timestamp")
+    table.add_column("Score", justify="right")
+    table.add_column("Rating")
+    for r in runs:
+        score = f"{r['earned']}/{r['total']}"
+        if r["errors"]:
+            score += f" [red]⛔{r['errors']}[/red]"
+        table.add_row(
+            r["mode"],
+            r["model"] or "-",
+            r["timestamp"],
+            score,
+            r["rating"],
+        )
+    console.print(table)
+    console.print(f"\n{runs[0]['run_dir'].rsplit('/', 3)[0]}/{runs[0]['mode']}/")

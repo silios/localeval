@@ -14,6 +14,8 @@ from .reporting import ResultsWriter, make_run_dir, score_fields, write_config, 
 
 MODE_MODULES = {"mmlu": mmlu, "code": code, "ifeval": ifeval}
 
+import fnmatch
+
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--base-url", default="http://localhost:8080", help="OpenAI-compatible base URL")
@@ -500,6 +502,71 @@ def _dry_run_all(args) -> dict:
     return results
 
 
+def list_runs(runs_root: pathlib.Path, model_filter: str = None) -> list:
+    """Walk a runs directory and return a list of run summary dicts.
+
+    Each dict has: mode, model, timestamp, earned, total, pct, rating,
+    errors, run_dir. Sorted newest-first by timestamp. Skips directories
+    without both config.json and summary.json.
+    """
+    results = []
+    for mode_dir in sorted(runs_root.iterdir()):
+        if not mode_dir.is_dir():
+            continue
+        for run_dir in sorted(mode_dir.iterdir()):
+            if not run_dir.is_dir():
+                continue
+            cfg_path = run_dir / "config.json"
+            sum_path = run_dir / "summary.json"
+            if not cfg_path.exists() or not sum_path.exists():
+                continue
+            try:
+                cfg = json.loads(cfg_path.read_text())
+                summary = json.loads(sum_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                continue
+
+            mode = cfg.get("mode", mode_dir.name)
+            model = cfg.get("model", "")
+            if model_filter and not fnmatch.fnmatch(model.lower(), model_filter.lower()):
+                continue
+
+            fields = score_fields(mode, summary)
+            earned = fields["earned"]
+            total = fields["total"]
+            pct = (earned / total * 100) if total else 0.0
+            errors = summary.get("error", 0)
+
+            results.append({
+                "mode": mode,
+                "model": model,
+                "timestamp": run_dir.name,
+                "earned": earned,
+                "total": total,
+                "pct": round(pct, 1),
+                "rating": display.rating_for(pct),
+                "errors": errors,
+                "run_dir": str(run_dir),
+            })
+
+    results.sort(key=lambda r: r["timestamp"], reverse=True)
+    return results
+
+
+def cmd_list(args) -> None:
+    runs_root = pathlib.Path(args.runs_dir)
+    if not runs_root.is_dir():
+        print(f"error: {runs_root} is not a directory", file=sys.stderr)
+        sys.exit(1)
+
+    runs = list_runs(runs_root, model_filter=args.filter)
+    if not runs:
+        print(f"No runs found in {runs_root}" + (f" matching '{args.filter}'" if args.filter else ""))
+        return
+
+    display.print_list_runs(runs)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="localeval", description="Benchmark a local LLM via a llama.cpp OpenAI-compatible endpoint")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -555,6 +622,11 @@ def main(argv=None) -> int:
     p_compare.add_argument("run_dir_a", help="Path to the first (baseline) run directory")
     p_compare.add_argument("run_dir_b", help="Path to the second (comparison) run directory")
     p_compare.set_defaults(func=cmd_compare)
+
+    p_list = subparsers.add_parser("list", help="List past runs with scores and ratings")
+    p_list.add_argument("--runs-dir", default="runs", help="Root directory for run outputs")
+    p_list.add_argument("--filter", default=None, help="Filter by model name (glob, e.g. 'qwen*')")
+    p_list.set_defaults(func=cmd_list)
 
     args = parser.parse_args(argv)
     args.func(args)
