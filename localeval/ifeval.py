@@ -186,6 +186,23 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
             "request": request,
         }
 
+    if result.finish_reason == "length":
+        # A cut-off response must never be checked against a constraint:
+        # it can spuriously pass some checks (e.g. max_word_count,
+        # no_commas, forbidden_letter are all easier to satisfy with
+        # less text) and spuriously fail others (valid_json,
+        # exact_word_count) - neither outcome reflects whether the model
+        # would have satisfied the constraint if it had finished.
+        return {
+            "id": case.id,
+            "constraint_type": case.constraint_type,
+            "status": "truncated",
+            "finish_reason": result.finish_reason,
+            "request": request,
+            "raw_response": result.raw_response,
+            "response_text": result.content,
+        }
+
     checker = CONSTRAINT_CHECKERS.get(case.constraint_type)
     if checker is None:
         return {
@@ -258,6 +275,7 @@ def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show
     # request errors into a vague "other" bucket is exactly the kind of
     # masking that produced a false 22.8% MMLU score in a previous harness.
     errors = sum(1 for r in results if r["status"] == "error")
+    truncated = sum(1 for r in results if r["status"] == "truncated")
     other = sum(1 for r in results if r["status"] in ("unknown_constraint", "checker_error"))
 
     denom = passed + failed
@@ -265,13 +283,15 @@ def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show
 
     by_constraint = {}
     for r in results:
-        ct = by_constraint.setdefault(r["constraint_type"], {"pass": 0, "fail": 0, "error": 0, "other": 0})
+        ct = by_constraint.setdefault(r["constraint_type"], {"pass": 0, "fail": 0, "error": 0, "truncated": 0, "other": 0})
         if r["status"] == "pass":
             ct["pass"] += 1
         elif r["status"] == "fail":
             ct["fail"] += 1
         elif r["status"] == "error":
             ct["error"] += 1
+        elif r["status"] == "truncated":
+            ct["truncated"] += 1
         else:
             ct["other"] += 1
 
@@ -286,6 +306,7 @@ def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show
         "pass": passed,
         "fail": failed,
         "error": errors,
+        "truncated": truncated,
         "other": other,
         "overall_pass_rate_pct": round(overall_pct, 1),
         "by_constraint": per_constraint_summary,

@@ -116,6 +116,19 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
             "request": request,
         }
 
+    if result.finish_reason == "length":
+        # Truncated generation always wins over whatever partial code is
+        # in the response - even a fenced block that looks complete may
+        # be missing its closing lines. Never silently score this fail.
+        return {
+            "name": task["name"],
+            "status": "truncated",
+            "finish_reason": result.finish_reason,
+            "request": request,
+            "raw_response": result.raw_response,
+            "response_text": result.content,
+        }
+
     scratch_dir = scratch_root / task["name"]
     scratch_dir.mkdir(parents=True, exist_ok=True)
 
@@ -180,6 +193,7 @@ def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_time
     failed = sum(1 for r in results if r["status"] == "fail")
     timeout = sum(1 for r in results if r["status"] == "timeout")
     no_code = sum(1 for r in results if r["status"] == "no_code_block")
+    truncated = sum(1 for r in results if r["status"] == "truncated")
     errors = sum(1 for r in results if r["status"] == "error")
 
     denominator = passed + failed
@@ -191,6 +205,7 @@ def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_time
         "fail": failed,
         "timeout": timeout,
         "no_code_block": no_code,
+        "truncated": truncated,
         "error": errors,
         "pass_rate_pct": round(pass_rate, 1),
     }

@@ -74,7 +74,7 @@ def score_fields(mode: str, summary: dict) -> dict:
         total = summary["pass"] + summary["fail"]
         counts = {
             "pass": summary["pass"],
-            "partial": summary["timeout"] + summary["no_code_block"],
+            "partial": summary["timeout"] + summary["no_code_block"] + summary["truncated"],
             "fail": summary["fail"],
             "error": summary["error"],
         }
@@ -83,7 +83,7 @@ def score_fields(mode: str, summary: dict) -> dict:
         total = summary["pass"] + summary["fail"]
         counts = {
             "pass": summary["pass"],
-            "partial": summary["other"],
+            "partial": summary["other"] + summary["truncated"],
             "fail": summary["fail"],
             "error": summary["error"],
         }

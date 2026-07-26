@@ -28,6 +28,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `code` and `ifeval` modes now check `finish_reason == "length"` and
+  mark the item TRUNCATED, matching `mmlu`'s existing behavior. Before
+  this fix, a cut-off response in `code` mode got written to disk and
+  verified anyway (an almost-certain false `fail`), and in `ifeval`
+  mode got checked against its constraint anyway (which can produce
+  both false passes - e.g. `no_commas` is trivially satisfied by less
+  text - and false fails, e.g. `valid_json`). Neither mode had a
+  `truncated` bucket at all previously.
+
 - The final terminal summary panel and category/constraint breakdown no
   longer hide request errors. A run where the server dropped mid-way
   (e.g. restarted to change `--parallel`) used to show a clean-looking
