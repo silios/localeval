@@ -173,7 +173,10 @@ def load_cases(path: str) -> list:
 
 
 def evaluate_case(config: ChatConfig, case: Case) -> dict:
-    messages = [{"role": "user", "content": case.prompt}]
+    messages = []
+    if config.system_prompt:
+        messages.append({"role": "system", "content": config.system_prompt})
+    messages.append({"role": "user", "content": case.prompt})
     request = {"messages": messages, "max_tokens": config.max_tokens, "model": config.model}
 
     result = chat_completion(config, messages)

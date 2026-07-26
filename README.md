@@ -177,6 +177,8 @@ python -m localeval list --filter "qwen*"
 | `--dry-run` | `false` | Load and validate the bank without sending requests - prints item counts and category breakdown, catches malformed data before a long run |
 | `--retries` | `2` | Retries on transient request failures (connection error, non-200, malformed response) - never on a real response, including a truncated one |
 | `--retry-backoff` | `1.0` | Seconds before the first retry, doubling each subsequent attempt |
+| `--system-prompt` | `""` | Override the system prompt for all requests. For mmlu, the default instructs the model to output `FINAL ANSWER: X` - if you override it, include that instruction yourself |
+| `--prompt-file` | `""` | Read the system prompt from a file (takes precedence over `--system-prompt` if both given) |
 
 ### Timing metrics
 

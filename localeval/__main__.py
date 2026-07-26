@@ -27,9 +27,17 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--runs-dir", default="runs", help="Root directory for run outputs")
     parser.add_argument("--retries", type=int, default=2, help="Retries on transient request failures (not on a real response)")
     parser.add_argument("--retry-backoff", type=float, default=1.0, help="Seconds to wait before the first retry, doubling each attempt")
+    parser.add_argument("--system-prompt", default=None, help="Override the system prompt for all requests")
+    parser.add_argument("--prompt-file", default=None, help="Read system prompt from a file")
 
 
 def build_chat_config(args) -> ChatConfig:
+    system_prompt = ""
+    if args.system_prompt:
+        system_prompt = args.system_prompt
+    elif args.prompt_file:
+        system_prompt = pathlib.Path(args.prompt_file).read_text().strip()
+
     return ChatConfig(
         base_url=args.base_url,
         model=args.model,
@@ -38,6 +46,7 @@ def build_chat_config(args) -> ChatConfig:
         timeout=args.timeout,
         retries=args.retries,
         retry_backoff=args.retry_backoff,
+        system_prompt=system_prompt,
     )
 
 

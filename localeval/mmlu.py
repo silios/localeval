@@ -195,8 +195,9 @@ class QuestionResult:
 
 
 def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
+    system = config.system_prompt or SYSTEM_PROMPT
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system},
         {"role": "user", "content": build_user_prompt(q)},
     ]
     request = {"messages": messages, "max_tokens": config.max_tokens, "model": config.model}

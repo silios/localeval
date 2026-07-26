@@ -26,6 +26,7 @@ class ChatConfig:
     timeout: int = 120
     retries: int = 2
     retry_backoff: float = 1.0
+    system_prompt: str = ""
 
 
 @dataclasses.dataclass

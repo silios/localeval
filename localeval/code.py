@@ -101,8 +101,9 @@ def run_verify(verify_path: pathlib.Path, scratch_dir: pathlib.Path, timeout: in
 
 
 def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_timeout: int) -> dict:
+    system = config.system_prompt or SYSTEM_PROMPT
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system},
         {"role": "user", "content": task["description"]},
     ]
     request = {"messages": messages, "max_tokens": config.max_tokens, "model": config.model}

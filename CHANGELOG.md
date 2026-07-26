@@ -42,6 +42,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   constraint types. Catches malformed data (missing options, bad JSON,
   missing answer keys) before committing to a long run.
 
+- `--system-prompt` and `--prompt-file` flags for all modes: override
+  the system prompt sent with every request. `--prompt-file` reads from
+  a file. Unlocks prompt engineering experiments (chain-of-thought,
+  role-playing) without code changes. For mmlu, the default prompt
+  includes a `FINAL ANSWER: X` instruction - override must include it.
+
 - `localeval resume <run_dir>`: reruns only the items still marked
   `error` in an existing run (reloading the original question/task/case
   bank), and merges the result back into that run directory in place -
@@ -135,8 +141,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   benchmark. Insert known facts at varying depths into filler text of
   configurable length, test whether the model retrieves them. The
   biggest differentiator between local models right now.
-- `--system-prompt` / `--prompt-file` override for all modes, unlocking
-  prompt engineering experiments without code changes.
 - Optional agentic (multi-turn) generation loop for `code` mode.
 
 ## [0.1.0] - 2026-07-26
