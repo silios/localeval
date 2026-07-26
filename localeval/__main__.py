@@ -647,6 +647,31 @@ def cmd_bench(args) -> dict:
     return {"mode": "bench", "results": results, "summary": summary, "report_path": report_path, "run_dir": run_dir}
 
 
+# ---------------------------------------------------------------------------
+# Preset commands (quick/medium/long/ultra): `all` against the bundled
+# sample banks with a fixed --limit, so a sanity check against a running
+# server doesn't need --questions/--tasks-dir/--cases/--limit spelled out
+# every time. Bank paths are relative to the project root, matching every
+# other example in the README.
+# ---------------------------------------------------------------------------
+
+PRESET_BANKS = {
+    "questions": "sample_data/mmlu-test-bank-200.md",
+    "tasks_dir": "sample_data/code_tasks",
+    "cases": "sample_data/ifeval_sample.json",
+}
+
+PRESET_LIMITS = {"quick": 10, "medium": 20, "long": 50, "ultra": None}
+
+
+def cmd_preset(args) -> dict:
+    args.questions = PRESET_BANKS["questions"]
+    args.tasks_dir = PRESET_BANKS["tasks_dir"]
+    args.cases = PRESET_BANKS["cases"]
+    args.limit = PRESET_LIMITS[args.preset_tier]
+    return cmd_all(args)
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="localeval", description="Benchmark a local LLM via a llama.cpp OpenAI-compatible endpoint")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -684,6 +709,18 @@ def main(argv=None) -> int:
     p_all.add_argument("--cases", default=None, help="Path to the JSON case file (ifeval)")
     p_all.add_argument("--dry-run", action="store_true", help="Load and validate all banks without sending requests")
     p_all.set_defaults(func=cmd_all)
+
+    for tier, limit in PRESET_LIMITS.items():
+        limit_desc = f"--limit {limit}" if limit else "no limit (full bank)"
+        p_preset = subparsers.add_parser(
+            tier,
+            help=f"Preset: run all modes against the bundled sample banks with {limit_desc}",
+        )
+        add_common_args(p_preset)
+        p_preset.add_argument("--verify-timeout", type=int, default=120, help="Seconds before a verify run is marked TIMEOUT (code)")
+        p_preset.add_argument("--scratch-dir", default=None, help="Where generated code is written (code)")
+        p_preset.add_argument("--dry-run", action="store_true", help="Load and validate all banks without sending requests")
+        p_preset.set_defaults(func=cmd_preset, preset_tier=tier)
 
     p_resume = subparsers.add_parser("resume", help="Rerun only the errored items from a previous run, updating it in place")
     p_resume.add_argument("run_dir", help="Path to an existing run directory, e.g. runs/mmlu/20260726T193151Z")

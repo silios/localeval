@@ -51,6 +51,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `localeval quick`/`medium`/`long`/`ultra`: shortcuts for `all` against
+  the bundled sample banks (`sample_data/mmlu-test-bank-200.md`,
+  `sample_data/code_tasks`, `sample_data/ifeval_sample.json`) at a fixed
+  `--limit` (`quick=10`, `medium=20`, `long=50`, `ultra`=full banks, no
+  limit), so a sanity check against a running server doesn't need
+  `--questions`/`--tasks-dir`/`--cases`/`--limit` spelled out every
+  time. All shared options still apply; bank paths are not overridable
+  on these presets - use `all` directly for a custom bank.
+
 - All requests are now sent with `stream: true` (SSE) instead of a
   blocking JSON response, so time-to-first-token (TTFT) and
   tokens-per-second can be measured per item. `ChatResult` gains

@@ -94,6 +94,28 @@ python -m localeval all \
   --limit 5
 ```
 
+### Presets - quick/medium/long/ultra, no bank flags needed
+
+`quick`, `medium`, `long`, and `ultra` are shortcuts for `all` against
+the bundled sample banks (`sample_data/mmlu-test-bank-200.md`,
+`sample_data/code_tasks`, `sample_data/ifeval_sample.json`) at a fixed
+`--limit`, so a sanity check against a running server doesn't need
+`--questions`/`--tasks-dir`/`--cases`/`--limit` spelled out every time -
+just point them at your server and model:
+
+```bash
+python -m localeval quick  --model Qwen3.6-35B-A3B-REAP   # --limit 10
+python -m localeval medium --model Qwen3.6-35B-A3B-REAP   # --limit 20
+python -m localeval long   --model Qwen3.6-35B-A3B-REAP   # --limit 50
+python -m localeval ultra  --model Qwen3.6-35B-A3B-REAP   # full banks, no limit
+```
+
+Any shared option (`--base-url`, `--max-tokens`, `--timeout`,
+`--concurrency`, `--system-prompt`, etc.), plus `--verify-timeout`,
+`--scratch-dir`, and `--dry-run`, works the same as on `all`. If you
+need different bank paths, use `all` directly with `--questions`/
+`--tasks-dir`/`--cases`.
+
 ### Concurrency - only helps if your server has multiple slots
 
 `--concurrency N` controls how many requests localeval keeps in flight.
@@ -386,6 +408,18 @@ exactly as if run standalone) under its own subdirectory, then `all`
 prints a combined panel and writes one additional global report at the
 top of the run directory: an overall score/rating aggregated across every
 mode that ran, plus a per-mode table linking to each mode's own report.
+
+### `quick` / `medium` / `long` / `ultra` presets
+
+```
+localeval quick|medium|long|ultra [shared options] [--verify-timeout N] [--scratch-dir DIR] [--dry-run]
+```
+
+Equivalent to `all --questions sample_data/mmlu-test-bank-200.md
+--tasks-dir sample_data/code_tasks --cases sample_data/ifeval_sample.json
+--limit N`, with `N` fixed per tier (`quick=10`, `medium=20`, `long=50`,
+`ultra`=unset/full banks). Bank paths are not overridable on these
+presets - use `all` directly for a custom bank.
 
 ## Terminal output
 
