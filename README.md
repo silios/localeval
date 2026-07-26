@@ -47,6 +47,59 @@ python -m localeval all    --questions sample_data/mmlu_sample.json \
                             --cases sample_data/ifeval_sample.json
 ```
 
+Against a real server, with a named model and a larger question bank:
+
+```bash
+python -m localeval mmlu \
+  --questions sample_data/mmlu-test-bank-200.md \
+  --base-url http://localhost:8080 \
+  --model Qwen3.6-35B-A3B-REAP \
+  --max-tokens 4096 \
+  --timeout 180
+```
+
+### Light mode - quick partial runs
+
+Every mode takes `--limit N` to only run the first N items - useful for
+a fast sanity check before committing to a full run:
+
+```bash
+# ~1/4 of a 200-question bank, for a quick check
+python -m localeval mmlu --questions sample_data/mmlu-test-bank-200.md --limit 50
+
+python -m localeval code   --tasks-dir sample_data/code_tasks --limit 2
+python -m localeval ifeval --cases sample_data/ifeval_sample.json --limit 3
+
+# applies to every mode passed to `all` at once
+python -m localeval all \
+  --questions sample_data/mmlu-test-bank-200.md \
+  --tasks-dir sample_data/code_tasks \
+  --cases sample_data/ifeval_sample.json \
+  --limit 5
+```
+
+### Concurrency - only helps if your server has multiple slots
+
+`--concurrency N` controls how many requests localeval keeps in flight.
+It does nothing useful unless your llama.cpp server was started with
+`--parallel N` (or higher) - with a single slot (the default), extra
+concurrency just queues at the server. Check slot count first:
+
+```bash
+curl -s http://localhost:8080/slots | python3 -c "import json,sys; print(len(json.load(sys.stdin)))"
+```
+
+Then match `--concurrency` to it:
+
+```bash
+python -m localeval mmlu --questions sample_data/mmlu-test-bank-200.md --concurrency 4
+```
+
+Note that on a single GPU, more parallel slots can also reduce
+per-stream decode speed (more so with speculative decoding enabled,
+e.g. `--spec-type draft-mtp`) - measure wall-clock time before assuming
+higher concurrency is actually faster end-to-end.
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |
@@ -132,7 +185,7 @@ that ratio.
 ### `code` mode
 
 ```
-localeval code --tasks-dir DIR [--verify-timeout 120] [--scratch-dir DIR]
+localeval code --tasks-dir DIR [--verify-timeout 120] [--scratch-dir DIR] [--limit N]
 ```
 
 **Task folder format** - one subdirectory per task:
@@ -161,7 +214,7 @@ Outcomes: `pass`, `fail`, `timeout` (verify script exceeded
 ### `ifeval` mode
 
 ```
-localeval ifeval --cases FILE
+localeval ifeval --cases FILE [--limit N]
 ```
 
 **Case file format** (JSON):
@@ -208,7 +261,8 @@ Outcomes: `pass`, `fail`, `error` (request failed), `unknown_constraint`
 
 Runs any combination of `--questions`, `--tasks-dir`, `--cases` under one
 timestamped run directory, e.g. `runs/all/20260726T220000Z/{mmlu,code,ifeval}/`.
-At least one must be given.
+At least one must be given. `--limit N` applies to every mode included in
+the run.
 
 ## Terminal output
 

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `--limit N` is now available on `code` and `ifeval` (previously only
+  `mmlu`), and applies to every mode included in an `all` run - useful
+  for a quick partial run before committing to a full one.
+
 ### Fixed
 
 - The final terminal summary panel and category/constraint breakdown no

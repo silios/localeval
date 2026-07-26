@@ -99,6 +99,7 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
     cfg = run_config_dict(args, "code")
     cfg["tasks_dir"] = args.tasks_dir
     cfg["verify_timeout"] = args.verify_timeout
+    cfg["limit"] = args.limit
     write_config(run_dir, cfg)
 
     scratch_root = pathlib.Path(args.scratch_dir) if args.scratch_dir else run_dir / "scratch"
@@ -107,7 +108,7 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
     writer = ResultsWriter(run_dir)
     start = time.monotonic()
     try:
-        summary, results = code.run(config, tasks, scratch_root, args.verify_timeout, writer)
+        summary, results = code.run(config, tasks, scratch_root, args.verify_timeout, writer, limit=args.limit)
     finally:
         writer.close()
     elapsed = time.monotonic() - start
@@ -141,12 +142,13 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
         run_dir = make_run_dir(pathlib.Path(args.runs_dir), "ifeval")
     cfg = run_config_dict(args, "ifeval")
     cfg["cases_file"] = args.cases
+    cfg["limit"] = args.limit
     write_config(run_dir, cfg)
 
     writer = ResultsWriter(run_dir)
     start = time.monotonic()
     try:
-        summary, results = ifeval.run(config, cases, writer)
+        summary, results = ifeval.run(config, cases, writer, limit=args.limit)
     finally:
         writer.close()
     elapsed = time.monotonic() - start
@@ -221,17 +223,19 @@ def main(argv=None) -> int:
     p_code.add_argument("--tasks-dir", required=True, help="Directory containing task folders")
     p_code.add_argument("--verify-timeout", type=int, default=120, help="Seconds before a verify run is marked TIMEOUT")
     p_code.add_argument("--scratch-dir", default=None, help="Where generated code is written (default: <run_dir>/scratch)")
+    p_code.add_argument("--limit", type=int, default=None, help="Only run the first N tasks")
     p_code.set_defaults(func=cmd_code)
 
     p_ifeval = subparsers.add_parser("ifeval", help="IFEval-light instruction-following benchmark")
     add_common_args(p_ifeval)
     p_ifeval.add_argument("--cases", required=True, help="Path to the JSON case file")
+    p_ifeval.add_argument("--limit", type=int, default=None, help="Only run the first N cases")
     p_ifeval.set_defaults(func=cmd_ifeval)
 
     p_all = subparsers.add_parser("all", help="Run all applicable modes in one go")
     add_common_args(p_all)
     p_all.add_argument("--questions", default=None, help="Path to the JSON question bank (mmlu)")
-    p_all.add_argument("--limit", type=int, default=None, help="Only run the first N questions (mmlu)")
+    p_all.add_argument("--limit", type=int, default=None, help="Only run the first N questions/tasks/cases (all modes)")
     p_all.add_argument("--tasks-dir", default=None, help="Directory containing task folders (code)")
     p_all.add_argument("--verify-timeout", type=int, default=120, help="Seconds before a verify run is marked TIMEOUT (code)")
     p_all.add_argument("--scratch-dir", default=None, help="Where generated code is written (code)")

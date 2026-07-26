@@ -149,7 +149,10 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
     }
 
 
-def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_timeout: int, results_writer, show_progress: bool = True) -> dict:
+def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_timeout: int, results_writer, limit: int = None, show_progress: bool = True) -> dict:
+    if limit:
+        tasks = tasks[:limit]
+
     results = []
     progress = display.make_progress("Code") if show_progress else None
     task_id = progress.add_task("Code", total=len(tasks)) if progress else None

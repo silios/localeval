@@ -221,7 +221,10 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
     }
 
 
-def run(config: ChatConfig, cases: list, results_writer, show_progress: bool = True) -> dict:
+def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show_progress: bool = True) -> dict:
+    if limit:
+        cases = cases[:limit]
+
     results = []
     progress = display.make_progress("IFEval-light") if show_progress else None
     task_id = progress.add_task("IFEval-light", total=len(cases)) if progress else None
