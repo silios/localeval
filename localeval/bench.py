@@ -121,3 +121,50 @@ def run_benchmark(
             })
 
     return results
+
+
+def _median(values: list) -> float:
+    if not values:
+        return 0.0
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    return s[mid] if n % 2 else (s[mid - 1] + s[mid]) / 2
+
+
+def summarize(results: list) -> dict:
+    """Aggregate per-trial results into overall and per-depth medians.
+
+    Median (not mean) so a single stalled trial doesn't skew the
+    reported throughput the way an outlier would skew a mean.
+    """
+    by_depth = {}
+    for r in results:
+        d = by_depth.setdefault(r["depth"], {"pp": [], "tg": [], "errors": 0, "trials": 0})
+        d["trials"] += 1
+        if r["ok"]:
+            d["pp"].append(r["pp_tokens_per_sec"])
+            d["tg"].append(r["tg_tokens_per_sec"])
+        else:
+            d["errors"] += 1
+
+    by_depth_summary = {
+        str(depth): {
+            "trials": d["trials"],
+            "errors": d["errors"],
+            "pp_tokens_per_sec_median": round(_median(d["pp"]), 1),
+            "tg_tokens_per_sec_median": round(_median(d["tg"]), 1),
+        }
+        for depth, d in by_depth.items()
+    }
+
+    all_pp = [r["pp_tokens_per_sec"] for r in results if r["ok"]]
+    all_tg = [r["tg_tokens_per_sec"] for r in results if r["ok"]]
+
+    return {
+        "total": len(results),
+        "error": sum(1 for r in results if not r["ok"]),
+        "pp_tokens_per_sec_median": round(_median(all_pp), 1),
+        "tg_tokens_per_sec_median": round(_median(all_tg), 1),
+        "by_depth": by_depth_summary,
+    }

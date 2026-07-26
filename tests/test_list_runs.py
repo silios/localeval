@@ -104,6 +104,29 @@ def test_list_runs_empty_directory(tmp_path):
     assert runs == []
 
 
+def test_list_runs_includes_bench_runs(tmp_path):
+    """Bench runs show up in `list` with a throughput score, not a
+    pass/fail score - score_fields() doesn't know how to score "bench"."""
+    run_dir = tmp_path / "bench" / "20260727T010000Z"
+    run_dir.mkdir(parents=True)
+    (run_dir / "config.json").write_text(json.dumps({
+        "mode": "bench", "model": "test-model", "base_url": "http://localhost:8080",
+    }))
+    (run_dir / "summary.json").write_text(json.dumps({
+        "total": 4, "error": 0,
+        "pp_tokens_per_sec_median": 3456.0, "tg_tokens_per_sec_median": 210.5,
+        "by_depth": {},
+    }))
+
+    runs = list_runs(tmp_path)
+
+    assert len(runs) == 1
+    r = runs[0]
+    assert r["mode"] == "bench"
+    assert r["rating"] == "-"
+    assert "3456" in r["score"] and "210" in r["score"]
+
+
 def test_list_runs_handles_errors_gracefully(tmp_path):
     """Runs with error counts show the errored badge."""
     _make_run(tmp_path, "mmlu", "20260726T120000Z", "model-a", 5, 10, 50.0, errors=3)

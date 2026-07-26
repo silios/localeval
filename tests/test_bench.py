@@ -1,6 +1,9 @@
 """Tests for localeval bench: throughput benchmark."""
 
+import json
+
 from localeval import bench
+from localeval.__main__ import main
 from localeval.client import ChatConfig
 
 
@@ -97,3 +100,76 @@ def test_run_benchmark_handles_error(monkeypatch):
     assert len(results) == 1
     assert results[0]["ok"] is False
     assert results[0]["error"] == "connection refused"
+
+
+def test_summarize_computes_median_per_depth_and_overall():
+    """summarize() takes the median (not mean) pp/tg t/s per depth and
+    overall, so one stalled trial doesn't skew the reported number."""
+    results = [
+        {"depth": 0, "trial": 1, "pp_tokens": 100, "tg_tokens": 20, "pp_tokens_per_sec": 1000.0, "tg_tokens_per_sec": 100.0, "ok": True, "error": ""},
+        {"depth": 0, "trial": 2, "pp_tokens": 100, "tg_tokens": 20, "pp_tokens_per_sec": 3000.0, "tg_tokens_per_sec": 300.0, "ok": True, "error": ""},
+        {"depth": 4096, "trial": 1, "pp_tokens": 100, "tg_tokens": 20, "pp_tokens_per_sec": 2000.0, "tg_tokens_per_sec": 200.0, "ok": True, "error": ""},
+    ]
+
+    summary = bench.summarize(results)
+
+    assert summary["total"] == 3
+    assert summary["error"] == 0
+    assert summary["by_depth"]["0"]["pp_tokens_per_sec_median"] == 2000.0  # median of 1000/3000
+    assert summary["by_depth"]["0"]["tg_tokens_per_sec_median"] == 200.0
+    assert summary["by_depth"]["4096"]["pp_tokens_per_sec_median"] == 2000.0
+    assert summary["by_depth"]["4096"]["trials"] == 1
+
+
+def test_summarize_excludes_errored_trials_from_medians():
+    """An errored trial counts toward the error tally but never enters
+    the pp/tg t/s medians (it has no real throughput to report)."""
+    results = [
+        {"depth": 0, "trial": 1, "pp_tokens": 0, "tg_tokens": 0, "pp_tokens_per_sec": 0.0, "tg_tokens_per_sec": 0.0, "ok": False, "error": "connection refused"},
+        {"depth": 0, "trial": 2, "pp_tokens": 100, "tg_tokens": 20, "pp_tokens_per_sec": 1000.0, "tg_tokens_per_sec": 100.0, "ok": True, "error": ""},
+    ]
+
+    summary = bench.summarize(results)
+
+    assert summary["total"] == 2
+    assert summary["error"] == 1
+    assert summary["by_depth"]["0"]["errors"] == 1
+    assert summary["by_depth"]["0"]["pp_tokens_per_sec_median"] == 1000.0
+    assert summary["pp_tokens_per_sec_median"] == 1000.0
+
+
+def test_cmd_bench_persists_run_to_runs_dir(tmp_path, monkeypatch):
+    """`localeval bench` must write config.json/results.jsonl/summary.json/
+    a report under runs/bench/<ts>/, like every other mode - otherwise it
+    can never be listed or compared."""
+    def fake_sync(config, messages):
+        if config.max_tokens == 1:
+            return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 1}, "elapsed_ms": 100.0}
+        return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 20}, "elapsed_ms": 300.0}
+
+    monkeypatch.setattr(bench, "chat_completion_sync", fake_sync)
+
+    exit_code = main([
+        "bench", "--runs-dir", str(tmp_path), "--pp", "100", "--tg", "20",
+        "--depth", "0", "--trials", "2",
+    ])
+    assert exit_code == 0
+
+    bench_dirs = list((tmp_path / "bench").iterdir())
+    assert len(bench_dirs) == 1
+    run_dir = bench_dirs[0]
+
+    assert (run_dir / "config.json").exists()
+    assert (run_dir / "results.jsonl").exists()
+    assert (run_dir / "summary.json").exists()
+    assert list(run_dir.glob("*-report.md"))
+
+    cfg = json.loads((run_dir / "config.json").read_text())
+    assert cfg["mode"] == "bench"
+
+    results = [json.loads(line) for line in (run_dir / "results.jsonl").read_text().splitlines()]
+    assert len(results) == 2
+
+    summary = json.loads((run_dir / "summary.json").read_text())
+    assert summary["total"] == 2
+    assert "0" in summary["by_depth"]

@@ -183,6 +183,14 @@ first to establish baseline throughput before capability benchmarks.
 python -m localeval bench --pp 2048 --tg 128 --depth "0,4096,8192,16384" --trials 3
 ```
 
+Like every other mode, `bench` writes `config.json`/`results.jsonl` (one
+line per trial)/`summary.json` (median pp/tg t/s overall and per depth)/
+a report under `runs/bench/<timestamp>/` - so `localeval list` shows past
+bench runs (with a throughput score instead of a pass/fail one), and
+`localeval compare <run-dir-1> <run-dir-2>` diffs two bench runs' pp/tg
+t/s, overall and per depth, to compare throughput across models or
+server configs.
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |

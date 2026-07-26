@@ -199,6 +199,46 @@ def _delta_str(delta, suffix: str = "") -> str:
     return f"[dim]{delta:.1f}{suffix}[/dim]"
 
 
+def _print_bench_compare(result: dict, model_a: str, model_b: str) -> None:
+    ov = result["overall"]
+    lines = [
+        "[bold]Mode:[/bold] bench",
+        f"[bold]A (baseline):[/bold] {model_a or 'run 1'}",
+        f"[bold]B (compare):[/bold]  {model_b or 'run 2'}",
+        "",
+        f"[bold]pp t/s (median):[/bold]  [cyan]{ov['pp_tps_a']:.1f}[/cyan]  →  [cyan]{ov['pp_tps_b']:.1f}[/cyan]  ({_delta_str(ov['pp_tps_delta'])})",
+        f"[bold]tg t/s (median):[/bold]  [cyan]{ov['tg_tps_a']:.1f}[/cyan]  →  [cyan]{ov['tg_tps_b']:.1f}[/cyan]  ({_delta_str(ov['tg_tps_delta'])})",
+    ]
+    if ov["errors_a"] or ov["errors_b"]:
+        lines.append(f"[bold]Errors:[/bold] {ov['errors_a']} → {ov['errors_b']}")
+    lines.append("")
+    panel = Panel("\n".join(lines), title="📊 Compare Bench Runs", border_style="blue", expand=False)
+    console.print(panel)
+
+    by_depth = result.get("by_depth") or {}
+    if not by_depth:
+        return
+
+    def _fmt(v):
+        return f"{v:.0f}" if isinstance(v, (int, float)) else v
+
+    table = Table(title="By Depth", title_style="bold", box=None)
+    table.add_column("Depth")
+    table.add_column("pp t/s A", justify="right")
+    table.add_column("pp t/s B", justify="right")
+    table.add_column("pp Δ", justify="right")
+    table.add_column("tg t/s A", justify="right")
+    table.add_column("tg t/s B", justify="right")
+    table.add_column("tg Δ", justify="right")
+    for depth, d in sorted(by_depth.items(), key=lambda kv: int(kv[0])):
+        table.add_row(
+            depth,
+            _fmt(d["pp_tps_a"]), _fmt(d["pp_tps_b"]), _delta_str(d["pp_tps_delta"]),
+            _fmt(d["tg_tps_a"]), _fmt(d["tg_tps_b"]), _delta_str(d["tg_tps_delta"]),
+        )
+    console.print(table)
+
+
 def print_compare(result: dict, model_a: str = "", model_b: str = "") -> None:
     """Side-by-side comparison of two runs, rendered as Rich tables.
 
@@ -207,6 +247,10 @@ def print_compare(result: dict, model_a: str = "", model_b: str = "") -> None:
     model_b: model name for the comparison (run 2)
     """
     mode = result["mode"]
+    if mode == "bench":
+        _print_bench_compare(result, model_a, model_b)
+        return
+
     ov = result["overall"]
     group_label = "Constraints" if mode == "ifeval" else "Categories"
     groups = result.get("constraints") or result.get("categories") or {}
@@ -296,7 +340,7 @@ def print_list_runs(runs: list) -> None:
     table.add_column("Score", justify="right")
     table.add_column("Rating")
     for r in runs:
-        score = f"{r['earned']}/{r['total']}"
+        score = r.get("score", f"{r['earned']}/{r['total']}")
         if r["errors"]:
             score += f" [red]⛔{r['errors']}[/red]"
         table.add_row(
@@ -310,18 +354,19 @@ def print_list_runs(runs: list) -> None:
     console.print(f"\n{runs[0]['run_dir'].rsplit('/', 3)[0]}/{runs[0]['mode']}/")
 
 
-def print_bench_results(results: list, model: str = "", depths: list = None) -> None:
+def print_bench_results(results: list, model: str = "", depths: list = None, report_path=None) -> None:
     """Print throughput benchmark results as a Rich table.
 
     results: list of dicts from bench.run_benchmark()
     """
-    panel = Panel(
-        f"[bold]Model:[/bold] {model or 'unknown'}\n"
-        f"[bold]Depths:[/bold] {depths or []}\n"
+    lines = [
+        f"[bold]Model:[/bold] {model or 'unknown'}",
+        f"[bold]Depths:[/bold] {depths or []}",
         f"[bold]Runs:[/bold] {len(results)} total",
-        title="⚡ Throughput Benchmark",
-        border_style="purple",
-    )
+    ]
+    if report_path is not None:
+        lines.append(f"[bold]Report:[/bold] {report_path}")
+    panel = Panel("\n".join(lines), title="⚡ Throughput Benchmark", border_style="purple")
     console.print(panel)
     console.print("")
 

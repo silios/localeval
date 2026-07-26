@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `localeval bench` now persists its run like every other mode:
+  `config.json`/`results.jsonl` (one line per trial)/`summary.json`
+  (median pp/tg t/s overall and per context depth)/a report under
+  `runs/bench/<timestamp>/`. Previously bench only printed a table and
+  discarded the data, so a bench run couldn't be listed or compared
+  later. `localeval list` now shows bench runs (with a throughput score
+  instead of pass/fail), and `localeval compare` diffs two bench runs'
+  pp/tg t/s medians, overall and per depth.
+
 - `print_final_panel`/`print_global_panel` had the success/incomplete
   panel border colors swapped: a fully successful run showed a red
   border and a run with errors showed yellow. Corrected so errored runs

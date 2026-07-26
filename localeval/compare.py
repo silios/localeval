@@ -42,6 +42,55 @@ def _group_earned_wrong(mode: str, g: dict) -> tuple:
     return g["correct"], g["wrong"]
 
 
+def _bench_group_diff(a: dict, b: dict) -> dict:
+    """pp/tg t/s deltas between two bench summary dicts (overall or one
+    depth's stats) - positive delta means b is faster."""
+    pp_a = a.get("pp_tokens_per_sec_median", 0)
+    pp_b = b.get("pp_tokens_per_sec_median", 0)
+    tg_a = a.get("tg_tokens_per_sec_median", 0)
+    tg_b = b.get("tg_tokens_per_sec_median", 0)
+    return {
+        "pp_tps_a": pp_a,
+        "pp_tps_b": pp_b,
+        "pp_tps_delta": round(pp_b - pp_a, 1),
+        "tg_tps_a": tg_a,
+        "tg_tps_b": tg_b,
+        "tg_tps_delta": round(tg_b - tg_a, 1),
+    }
+
+
+def diff_bench_summaries(a: dict, b: dict) -> dict:
+    """Compute pp/tg t/s deltas between two bench summaries, overall and
+    per context depth. a is the baseline (run 1), b is the comparison
+    (run 2) - positive deltas mean b is faster."""
+    overall = _bench_group_diff(a, b)
+    overall["errors_a"] = a.get("error", 0)
+    overall["errors_b"] = b.get("error", 0)
+
+    depths_a = a.get("by_depth", {})
+    depths_b = b.get("by_depth", {})
+    all_depths = sorted(set(depths_a) | set(depths_b), key=int)
+
+    by_depth = {}
+    for depth in all_depths:
+        da = depths_a.get(depth)
+        db = depths_b.get(depth)
+        if da and db:
+            by_depth[depth] = _bench_group_diff(da, db)
+        elif da:
+            by_depth[depth] = {
+                "pp_tps_a": da.get("pp_tokens_per_sec_median", 0), "pp_tps_b": "-", "pp_tps_delta": "-",
+                "tg_tps_a": da.get("tg_tokens_per_sec_median", 0), "tg_tps_b": "-", "tg_tps_delta": "-",
+            }
+        else:
+            by_depth[depth] = {
+                "pp_tps_a": "-", "pp_tps_b": db.get("pp_tokens_per_sec_median", 0), "pp_tps_delta": "-",
+                "tg_tps_a": "-", "tg_tps_b": db.get("tg_tokens_per_sec_median", 0), "tg_tps_delta": "-",
+            }
+
+    return {"mode": "bench", "overall": overall, "by_depth": by_depth}
+
+
 def diff_summaries(mode: str, a: dict, b: dict) -> dict:
     """Compute deltas between two summary dicts of the same mode.
 
@@ -49,6 +98,9 @@ def diff_summaries(mode: str, a: dict, b: dict) -> dict:
     latency comparisons. a is the baseline (run 1), b is the comparison
     (run 2) - positive deltas mean b did better.
     """
+    if mode == "bench":
+        return diff_bench_summaries(a, b)
+
     pct_key = _pct_field(mode)
     earned_a, wrong_a = _earned_wrong(mode, a)
     earned_b, wrong_b = _earned_wrong(mode, b)

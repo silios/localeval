@@ -106,6 +106,56 @@ def test_diff_handles_missing_latency():
     assert result["latency"] == {}
 
 
+def test_diff_summaries_bench_mode():
+    """Bench mode diffs pp/tg t/s medians instead of pass/fail."""
+    a = {
+        "total": 4, "error": 0,
+        "pp_tokens_per_sec_median": 3000.0, "tg_tokens_per_sec_median": 200.0,
+        "by_depth": {
+            "0": {"trials": 2, "errors": 0, "pp_tokens_per_sec_median": 4000.0, "tg_tokens_per_sec_median": 250.0},
+            "4096": {"trials": 2, "errors": 0, "pp_tokens_per_sec_median": 2000.0, "tg_tokens_per_sec_median": 150.0},
+        },
+    }
+    b = {
+        "total": 4, "error": 0,
+        "pp_tokens_per_sec_median": 3500.0, "tg_tokens_per_sec_median": 220.0,
+        "by_depth": {
+            "0": {"trials": 2, "errors": 0, "pp_tokens_per_sec_median": 4500.0, "tg_tokens_per_sec_median": 260.0},
+            "4096": {"trials": 2, "errors": 0, "pp_tokens_per_sec_median": 2500.0, "tg_tokens_per_sec_median": 180.0},
+        },
+    }
+    result = diff_summaries("bench", a, b)
+
+    assert result["mode"] == "bench"
+    assert result["overall"]["pp_tps_delta"] == 500.0
+    assert result["overall"]["tg_tps_delta"] == 20.0
+    assert result["by_depth"]["0"]["pp_tps_delta"] == 500.0
+    assert result["by_depth"]["4096"]["tg_tps_delta"] == 30.0
+
+
+def test_diff_summaries_bench_mode_missing_depth():
+    """A depth present in only one bench run still appears, unscored on
+    the other side."""
+    a = {
+        "total": 2, "error": 0,
+        "pp_tokens_per_sec_median": 3000.0, "tg_tokens_per_sec_median": 200.0,
+        "by_depth": {"0": {"trials": 1, "errors": 0, "pp_tokens_per_sec_median": 3000.0, "tg_tokens_per_sec_median": 200.0}},
+    }
+    b = {
+        "total": 2, "error": 0,
+        "pp_tokens_per_sec_median": 3500.0, "tg_tokens_per_sec_median": 220.0,
+        "by_depth": {
+            "0": {"trials": 1, "errors": 0, "pp_tokens_per_sec_median": 3500.0, "tg_tokens_per_sec_median": 220.0},
+            "8192": {"trials": 1, "errors": 0, "pp_tokens_per_sec_median": 1000.0, "tg_tokens_per_sec_median": 100.0},
+        },
+    }
+    result = diff_summaries("bench", a, b)
+
+    assert result["by_depth"]["8192"]["pp_tps_a"] == "-"
+    assert result["by_depth"]["8192"]["pp_tps_b"] == 1000.0
+    assert result["by_depth"]["8192"]["pp_tps_delta"] == "-"
+
+
 def test_diff_handles_missing_categories():
     """If a category exists only in one summary, it still appears."""
     a = {"total": 5, "correct": 3, "wrong": 2, "truncated": 0,

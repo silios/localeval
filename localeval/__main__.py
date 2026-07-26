@@ -549,6 +549,23 @@ def list_runs(runs_root: pathlib.Path, model_filter: str = None) -> list:
             if model_filter and not fnmatch.fnmatch(model.lower(), model_filter.lower()):
                 continue
 
+            if mode == "bench":
+                pp = summary.get("pp_tokens_per_sec_median", 0)
+                tg = summary.get("tg_tokens_per_sec_median", 0)
+                results.append({
+                    "mode": mode,
+                    "model": model,
+                    "timestamp": run_dir.name,
+                    "earned": tg,
+                    "total": pp,
+                    "pct": 0.0,
+                    "rating": "-",
+                    "score": f"{pp:.0f}pp/{tg:.0f}tg t/s",
+                    "errors": summary.get("error", 0),
+                    "run_dir": str(run_dir),
+                })
+                continue
+
             fields = score_fields(mode, summary)
             earned = fields["earned"]
             total = fields["total"]
@@ -563,6 +580,7 @@ def list_runs(runs_root: pathlib.Path, model_filter: str = None) -> list:
                 "total": total,
                 "pct": round(pct, 1),
                 "rating": display.rating_for(pct),
+                "score": f"{earned}/{total}",
                 "errors": errors,
                 "run_dir": str(run_dir),
             })
@@ -590,16 +608,43 @@ def cmd_bench(args) -> dict:
     config = build_chat_config(args)
     depths = [int(d.strip()) for d in args.depth.split(",")]
 
-    results = bench.run_benchmark(
-        config,
-        depths=depths,
-        pp_tokens=args.pp,
-        tg_tokens=args.tg,
-        trials=args.trials,
-    )
+    run_dir = make_run_dir(pathlib.Path(args.runs_dir), "bench")
+    cfg = {
+        "mode": "bench",
+        "base_url": args.base_url,
+        "model": args.model,
+        "api_key": config.api_key,
+        "timeout": args.timeout,
+        "pp": args.pp,
+        "tg": args.tg,
+        "depth": args.depth,
+        "trials": args.trials,
+    }
+    write_config(run_dir, cfg)
 
-    display.print_bench_results(results, model=config.model, depths=depths)
-    return {"mode": "bench", "results": results}
+    writer = ResultsWriter(run_dir)
+    start = time.monotonic()
+    try:
+        results = bench.run_benchmark(
+            config,
+            depths=depths,
+            pp_tokens=args.pp,
+            tg_tokens=args.tg,
+            trials=args.trials,
+        )
+        for r in results:
+            writer.write(r)
+    finally:
+        writer.close()
+    elapsed = time.monotonic() - start
+
+    summary = bench.summarize(results)
+    write_summary(run_dir, summary)
+    report_path = report.write_bench_report(run_dir, cfg, summary, results, elapsed_s=elapsed)
+
+    display.print_bench_results(results, model=config.model, depths=depths, report_path=report_path)
+
+    return {"mode": "bench", "results": results, "summary": summary, "report_path": report_path, "run_dir": run_dir}
 
 
 def main(argv=None) -> int:

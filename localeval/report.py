@@ -201,6 +201,59 @@ def write_report(run_dir: pathlib.Path, mode: str, config: dict, summary: dict, 
     return path
 
 
+def write_bench_report(run_dir: pathlib.Path, config: dict, summary: dict, results: list, elapsed_s: float = 0.0) -> pathlib.Path:
+    """Report for `localeval bench`: overall + per-depth pp/tg t/s medians,
+    then every raw trial. Unlike mmlu/code/ifeval, bench has no pass/fail
+    scoring - the "score" here is throughput, not correctness."""
+    model = config.get("model") or "unknown-model"
+    path = run_dir / report_filename(model)
+
+    lines = [
+        "# localeval bench report",
+        "",
+        f"- generated: {datetime.now(timezone.utc).isoformat()}",
+        f"- model: {model}",
+        f"- base_url: {config.get('base_url')}",
+        f"- run_dir: `{run_dir}`",
+        "",
+        "## Throughput Summary",
+        "",
+        f"- **Trials:** {summary['total']} ({summary['error']} errored)",
+        f"- **Overall pp t/s (median):** {summary['pp_tokens_per_sec_median']}",
+        f"- **Overall tg t/s (median):** {summary['tg_tokens_per_sec_median']}",
+        f"- **Completed in:** {elapsed_s:.1f}s",
+        "",
+        "## By depth",
+        "",
+        "| Depth | Trials | pp t/s (median) | tg t/s (median) | Errors |",
+        "|---|---|---|---|---|",
+    ]
+    for depth, stats in sorted(summary["by_depth"].items(), key=lambda kv: int(kv[0])):
+        lines.append(f"| {depth} | {stats['trials']} | {stats['pp_tokens_per_sec_median']} | {stats['tg_tokens_per_sec_median']} | {stats['errors']} |")
+    lines.append("")
+
+    lines.extend(
+        [
+            "## Config",
+            "",
+            "```json",
+            json.dumps(config, indent=2, default=str),
+            "```",
+            "",
+            "## All trials (raw)",
+            "",
+            "| depth | trial | pp_tokens | tg_tokens | pp t/s | tg t/s | total_ms | ok | error |",
+            "|---|---|---|---|---|---|---|---|---|",
+        ]
+    )
+    for r in results:
+        lines.append(f"| {r['depth']} | {r['trial']} | {r['pp_tokens']} | {r['tg_tokens']} | {r['pp_tokens_per_sec']} | {r['tg_tokens_per_sec']} | {r['total_ms']} | {r['ok']} | {r.get('error', '')} |")
+    lines.append("")
+
+    path.write_text("\n".join(lines) + "\n")
+    return path
+
+
 def write_global_report(run_dir: pathlib.Path, entries: list, elapsed_s: float) -> pathlib.Path:
     """One combined report for `localeval all`, aggregating every mode
     that ran into a single overall score/rating, plus a per-mode table
