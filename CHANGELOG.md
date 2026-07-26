@@ -18,6 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `tokens_per_second`/`total_tokens` were always `0.0`/`0` in
+  `results.jsonl`, `summary.json`'s `latency` object, and the terminal
+  panel for `mmlu`/`code`/`ifeval` (every mode using the streaming
+  request path). The OpenAI streaming API only includes a `usage`
+  block in the final SSE chunk when the request sets
+  `"stream_options": {"include_usage": true}` - this was never sent, so
+  `usage` was always empty and `completion_tokens` always defaulted to
+  `0`. TTFT was unaffected since it's measured independently of usage
+  data. Added the missing `stream_options` field to the streaming
+  request payload; verified against the live server that
+  `total_tokens`/`tokens_per_second` are now populated per item.
+
 - `localeval list`'s trailer hint (the path printed under the table)
   used `run_dir.rsplit('/', 3)[0]` plus the mode name, which only
   produced the right path by coincidence when `--runs-dir` was the

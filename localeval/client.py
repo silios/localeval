@@ -164,6 +164,7 @@ def _attempt(config: ChatConfig, messages: list[dict]) -> ChatResult:
         "messages": messages,
         "max_tokens": config.max_tokens,
         "stream": True,
+        "stream_options": {"include_usage": True},
     }
     if config.model:
         payload["model"] = config.model
