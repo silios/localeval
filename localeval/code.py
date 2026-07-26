@@ -20,7 +20,7 @@ import pathlib
 import re
 import subprocess
 
-from . import display
+from . import display, reporting
 from .client import ChatConfig, chat_completion
 
 CODE_FENCE_RE = re.compile(r"```[a-zA-Z0-9_+-]*\n(.*?)```", re.DOTALL)
@@ -163,8 +163,7 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
 
 
 def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_timeout: int, results_writer, limit: int = None, show_progress: bool = True) -> dict:
-    if limit:
-        tasks = tasks[:limit]
+    tasks = reporting.apply_limit(tasks, limit)
 
     results = []
     progress = display.make_progress("Code") if show_progress else None

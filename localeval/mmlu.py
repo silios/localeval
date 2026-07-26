@@ -43,7 +43,7 @@ import pathlib
 import re
 from dataclasses import dataclass, field
 
-from . import display
+from . import display, reporting
 from .client import ChatConfig, chat_completion
 
 FINAL_ANSWER_RE = re.compile(r"FINAL ANSWER:\s*([A-D])\b", re.IGNORECASE)
@@ -242,8 +242,7 @@ def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
 
 
 def run(config: ChatConfig, questions: list, concurrency: int, results_writer, limit: int = None, show_progress: bool = True) -> dict:
-    if limit:
-        questions = questions[:limit]
+    questions = reporting.apply_limit(questions, limit)
 
     records = []
     progress = display.make_progress("MMLU") if show_progress else None

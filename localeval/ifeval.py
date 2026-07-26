@@ -24,7 +24,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from . import display
+from . import display, reporting
 from .client import ChatConfig, chat_completion
 
 
@@ -239,8 +239,7 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
 
 
 def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show_progress: bool = True) -> dict:
-    if limit:
-        cases = cases[:limit]
+    cases = reporting.apply_limit(cases, limit)
 
     results = []
     progress = display.make_progress("IFEval-light") if show_progress else None

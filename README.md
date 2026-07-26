@@ -60,8 +60,12 @@ python -m localeval mmlu \
 
 ### Light mode - quick partial runs
 
-Every mode takes `--limit N` to only run the first N items - useful for
-a fast sanity check before committing to a full run:
+Every mode takes `--limit N` for a fast sanity check before committing
+to a full run. This is an evenly-strided sample across the whole bank
+(`reporting.apply_limit`), not the first N items - question/task/case
+banks are often grouped by category (easy topics first, hard ones
+last), so a plain first-N slice would only ever sample the easy end and
+report an optimistic score that a full run wouldn't back up:
 
 ```bash
 # ~1/4 of a 200-question bank, for a quick check

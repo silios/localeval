@@ -36,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   both false passes - e.g. `no_commas` is trivially satisfied by less
   text - and false fails, e.g. `valid_json`). Neither mode had a
   `truncated` bucket at all previously.
+- `--limit N` now takes an evenly-strided sample across the whole bank
+  (`reporting.apply_limit`) instead of a plain first-N slice. Banks are
+  often grouped by category, so first-N systematically sampled the easy
+  end and reported an optimistic score a full run wouldn't back up -
+  the same class of "hides the real number" problem this tool exists to
+  avoid.
 
 - The final terminal summary panel and category/constraint breakdown no
   longer hide request errors. A run where the server dropped mid-way

@@ -17,6 +17,19 @@ import pathlib
 from datetime import datetime, timezone
 
 
+def apply_limit(items: list, limit: int | None) -> list:
+    """Evenly stride-sample down to `limit` items instead of taking a
+    biased first-N slice. Question/task/case banks are often grouped by
+    category (e.g. easy math first, law/ethics last); a plain [:limit]
+    slice would only ever sample the start of that ordering, making
+    --limit systematically optimistic instead of representative.
+    """
+    if not limit or limit >= len(items):
+        return items
+    step = len(items) / limit
+    return [items[int(i * step)] for i in range(limit)]
+
+
 def make_run_dir(runs_root: pathlib.Path, mode: str) -> pathlib.Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = runs_root / mode / ts
