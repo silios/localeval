@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `print_final_panel`/`print_global_panel` had the success/incomplete
+  panel border colors swapped: a fully successful run showed a red
+  border and a run with errors showed yellow. Corrected so errored runs
+  are red and complete runs are yellow.
+
 - Added `requirements.txt` (`requests`, `rich`, unpinned). Nothing
   previously declared these anywhere in the repo, so a clean clone had
   no reliable way to know what to install. `README.md`'s setup steps

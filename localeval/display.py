@@ -125,7 +125,7 @@ def print_final_panel(mode: str, model: str, earned: int, total: int, counts: di
 
     incomplete = errored > 0
     title = "⚠️  Benchmark Incomplete" if incomplete else "🏆 Benchmark Complete"
-    border_style = "yellow" if incomplete else "red"
+    border_style = "red" if incomplete else "yellow"
     panel = Panel("\n".join(lines), title=title, border_style=border_style, expand=False)
     console.print(panel)
 
@@ -182,7 +182,7 @@ def print_global_panel(entries: list, elapsed_s: float, report_path) -> None:
 
     incomplete = errored > 0
     title = "⚠️  All Benchmarks Incomplete" if incomplete else "🏆 All Benchmarks Complete"
-    border_style = "yellow" if incomplete else "red"
+    border_style = "red" if incomplete else "yellow"
     panel = Panel("\n".join(lines), title=title, border_style=border_style, expand=False)
     console.print(panel)
 
