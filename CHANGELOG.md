@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- The per-run report file now includes a "Benchmark Summary" section
+  with the same score, star rating, pass/partial/fail/errored badges,
+  and coverage line shown in the terminal's final panel - previously
+  the report only had the raw JSON summary, not this readable form.
+  Both are now derived from the same `reporting.score_fields()` helper
+  so they can't drift out of sync with each other.
 - `--limit N` is now available on `code` and `ifeval` (previously only
   `mmlu`), and applies to every mode included in an `all` run - useful
   for a quick partial run before committing to a full one.

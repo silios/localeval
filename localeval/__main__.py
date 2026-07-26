@@ -9,7 +9,7 @@ import time
 
 from . import code, display, ifeval, mmlu, report
 from .client import ChatConfig
-from .reporting import ResultsWriter, make_run_dir, write_config, write_summary
+from .reporting import ResultsWriter, make_run_dir, score_fields, write_config, write_summary
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -63,7 +63,8 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
     elapsed = time.monotonic() - start
 
     write_summary(run_dir, summary)
-    report_path = report.write_report(run_dir, "mmlu", cfg, summary, results)
+    fields = score_fields("mmlu", summary)
+    report_path = report.write_report(run_dir, "mmlu", cfg, summary, results, elapsed_s=elapsed)
 
     breakdown_rows = []
     for cat, stats in summary["by_category"].items():
@@ -75,17 +76,12 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
     display.print_final_panel(
         mode="mmlu",
         model=args.model,
-        earned=summary["correct"],
-        total=summary["correct"] + summary["wrong"],
-        counts={
-            "pass": summary["correct"],
-            "partial": summary["truncated"] + summary["no_answer"],
-            "fail": summary["wrong"],
-            "error": summary["error"],
-        },
+        earned=fields["earned"],
+        total=fields["total"],
+        counts=fields["counts"],
         elapsed_s=elapsed,
         report_path=report_path,
-        run_total=summary["total"],
+        run_total=fields["run_total"],
     )
     return summary
 
@@ -114,22 +110,18 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
     elapsed = time.monotonic() - start
 
     write_summary(run_dir, summary)
-    report_path = report.write_report(run_dir, "code", cfg, summary, results)
+    fields = score_fields("code", summary)
+    report_path = report.write_report(run_dir, "code", cfg, summary, results, elapsed_s=elapsed)
 
     display.print_final_panel(
         mode="code",
         model=args.model,
-        earned=summary["pass"],
-        total=summary["pass"] + summary["fail"],
-        counts={
-            "pass": summary["pass"],
-            "partial": summary["timeout"] + summary["no_code_block"],
-            "fail": summary["fail"],
-            "error": summary["error"],
-        },
+        earned=fields["earned"],
+        total=fields["total"],
+        counts=fields["counts"],
         elapsed_s=elapsed,
         report_path=report_path,
-        run_total=summary["total"],
+        run_total=fields["run_total"],
     )
     return summary
 
@@ -154,7 +146,8 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
     elapsed = time.monotonic() - start
 
     write_summary(run_dir, summary)
-    report_path = report.write_report(run_dir, "ifeval", cfg, summary, results)
+    fields = score_fields("ifeval", summary)
+    report_path = report.write_report(run_dir, "ifeval", cfg, summary, results, elapsed_s=elapsed)
 
     breakdown_rows = []
     for ct, stats in summary["by_constraint"].items():
@@ -166,17 +159,12 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
     display.print_final_panel(
         mode="ifeval",
         model=args.model,
-        earned=summary["pass"],
-        total=summary["pass"] + summary["fail"],
-        counts={
-            "pass": summary["pass"],
-            "partial": summary["other"],
-            "fail": summary["fail"],
-            "error": summary["error"],
-        },
+        earned=fields["earned"],
+        total=fields["total"],
+        counts=fields["counts"],
         elapsed_s=elapsed,
         report_path=report_path,
-        run_total=summary["total"],
+        run_total=fields["run_total"],
     )
     return summary
 

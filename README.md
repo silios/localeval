@@ -291,12 +291,15 @@ Every invocation writes a timestamped directory under `<runs-dir>/<mode>/<timest
   received (never an excerpt - this is what made the original bug
   invisible)
 - `summary.json` - the same summary printed to the terminal
-- `<date>-<model>-<uuid>-report.md` - a human-readable debug report: the
-  config and summary, then every non-passing item (wrong / truncated /
-  no_answer / error / fail / timeout) with its key details and a short
-  response excerpt, followed by a compact table of every item. This is
-  the file to open first when debugging a run; `results.jsonl` is the
-  full raw backing data behind it.
+- `<date>-<model>-<uuid>-report.md` - a human-readable debug report: a
+  "Benchmark Summary" section with the same score, star rating,
+  pass/partial/fail/errored badges, and coverage line shown in the
+  terminal's final panel, then the full config, the raw summary JSON,
+  every non-passing item (wrong / truncated / no_answer / error / fail /
+  timeout) with its key details and a short response excerpt, and a
+  compact table of every item. This is the file to open first when
+  debugging a run; `results.jsonl` is the full raw backing data behind
+  it.
 
 A bug should be diagnosable by opening the report, then grepping
 `results.jsonl` for the relevant `id` if more detail is needed - no

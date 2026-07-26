@@ -53,3 +53,41 @@ def _json_default(obj):
 def write_summary(run_dir: pathlib.Path, summary: dict) -> None:
     with open(run_dir / "summary.json", "w") as f:
         json.dump(summary, f, indent=2, default=str)
+
+
+def score_fields(mode: str, summary: dict) -> dict:
+    """Derive the (earned, total, run_total, counts) fields used by both
+    the terminal final panel and the per-run report, so the two never
+    drift out of sync with each other.
+    """
+    if mode == "mmlu":
+        earned = summary["correct"]
+        total = summary["correct"] + summary["wrong"]
+        counts = {
+            "pass": summary["correct"],
+            "partial": summary["truncated"] + summary["no_answer"],
+            "fail": summary["wrong"],
+            "error": summary["error"],
+        }
+    elif mode == "code":
+        earned = summary["pass"]
+        total = summary["pass"] + summary["fail"]
+        counts = {
+            "pass": summary["pass"],
+            "partial": summary["timeout"] + summary["no_code_block"],
+            "fail": summary["fail"],
+            "error": summary["error"],
+        }
+    elif mode == "ifeval":
+        earned = summary["pass"]
+        total = summary["pass"] + summary["fail"]
+        counts = {
+            "pass": summary["pass"],
+            "partial": summary["other"],
+            "fail": summary["fail"],
+            "error": summary["error"],
+        }
+    else:
+        raise ValueError(f"unknown mode: {mode}")
+
+    return {"earned": earned, "total": total, "run_total": summary["total"], "counts": counts}

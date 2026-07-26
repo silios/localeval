@@ -15,6 +15,9 @@ import re
 import uuid
 from datetime import datetime, timezone
 
+from . import display
+from .reporting import score_fields
+
 
 def _slug(text: str) -> str:
     text = (text or "").strip()
@@ -110,7 +113,46 @@ _MODE_SECTIONS = {
 }
 
 
-def write_report(run_dir: pathlib.Path, mode: str, config: dict, summary: dict, results: list) -> pathlib.Path:
+def _benchmark_summary_section(mode: str, model: str, summary: dict, elapsed_s: float) -> list:
+    """The same score/rating/badges/coverage content shown in the
+    terminal's final panel (see localeval.display.print_final_panel),
+    rendered as markdown so it's captured in the report file too - not
+    just the raw JSON summary dump.
+    """
+    fields = score_fields(mode, summary)
+    earned, total, run_total, counts = fields["earned"], fields["total"], fields["run_total"], fields["counts"]
+    pct = (earned / total * 100) if total else 0.0
+    errored = counts.get("error", 0)
+
+    lines = [
+        "## Benchmark Summary",
+        "",
+        f"- **Score:** {earned} / {total} (of items that produced a scorable answer)",
+        f"- **Rating:** {display.rating_for(pct)}",
+    ]
+
+    badges = []
+    if counts.get("pass"):
+        badges.append(f"✅ {counts['pass']} passed")
+    if counts.get("partial"):
+        badges.append(f"⚠ {counts['partial']} partial")
+    if counts.get("fail"):
+        badges.append(f"❌ {counts['fail']} failed")
+    if errored:
+        badges.append(f"⛔ {errored} errored")
+    if badges:
+        lines.append(f"- **Results:** {'   '.join(badges)}")
+
+    if run_total != total:
+        scored_or_partial = total + counts.get("partial", 0)
+        lines.append(f"- **Coverage:** {scored_or_partial}/{run_total} items produced any response - {errored} never got one.")
+
+    lines.append(f"- **Completed in:** {elapsed_s:.1f}s")
+    lines.append("")
+    return lines
+
+
+def write_report(run_dir: pathlib.Path, mode: str, config: dict, summary: dict, results: list, elapsed_s: float = 0.0) -> pathlib.Path:
     model = config.get("model") or "unknown-model"
     path = run_dir / report_filename(model)
 
@@ -122,19 +164,24 @@ def write_report(run_dir: pathlib.Path, mode: str, config: dict, summary: dict, 
         f"- base_url: {config.get('base_url')}",
         f"- run_dir: `{run_dir}`",
         "",
-        "## Config",
-        "",
-        "```json",
-        json.dumps(config, indent=2, default=str),
-        "```",
-        "",
-        "## Summary",
-        "",
-        "```json",
-        json.dumps(summary, indent=2, default=str),
-        "```",
-        "",
     ]
+    lines.extend(_benchmark_summary_section(mode, model, summary, elapsed_s))
+    lines.extend(
+        [
+            "## Config",
+            "",
+            "```json",
+            json.dumps(config, indent=2, default=str),
+            "```",
+            "",
+            "## Summary (raw)",
+            "",
+            "```json",
+            json.dumps(summary, indent=2, default=str),
+            "```",
+            "",
+        ]
+    )
 
     section_fn = _MODE_SECTIONS.get(mode)
     if section_fn:
