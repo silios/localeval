@@ -264,6 +264,12 @@ timestamped run directory, e.g. `runs/all/20260726T220000Z/{mmlu,code,ifeval}/`.
 At least one must be given. `--limit N` applies to every mode included in
 the run.
 
+Each included mode gets its own full run (config/results/summary/report,
+exactly as if run standalone) under its own subdirectory, then `all`
+prints a combined panel and writes one additional global report at the
+top of the run directory: an overall score/rating aggregated across every
+mode that ran, plus a per-mode table linking to each mode's own report.
+
 ## Terminal output
 
 Each run shows a live progress bar with a running pass/fail tally, then
@@ -304,6 +310,11 @@ Every invocation writes a timestamped directory under `<runs-dir>/<mode>/<timest
 A bug should be diagnosable by opening the report, then grepping
 `results.jsonl` for the relevant `id` if more detail is needed - no
 re-running required.
+
+`localeval all` writes one of these per mode (under `<run-dir>/<mode>/`,
+same as standalone), plus one additional global report directly under
+`<run-dir>/`: an overall score/rating combined across every mode that
+ran, and a table linking to each mode's own report.
 
 ## Testing
 

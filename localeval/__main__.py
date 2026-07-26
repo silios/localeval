@@ -83,7 +83,7 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
         report_path=report_path,
         run_total=fields["run_total"],
     )
-    return summary
+    return {"mode": "mmlu", "model": args.model, "summary": summary, "report_path": report_path}
 
 
 def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
@@ -123,7 +123,7 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
         report_path=report_path,
         run_total=fields["run_total"],
     )
-    return summary
+    return {"mode": "code", "model": args.model, "summary": summary, "report_path": report_path}
 
 
 def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
@@ -166,7 +166,7 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
         report_path=report_path,
         run_total=fields["run_total"],
     )
-    return summary
+    return {"mode": "ifeval", "model": args.model, "summary": summary, "report_path": report_path}
 
 
 def cmd_all(args) -> dict:
@@ -175,24 +175,32 @@ def cmd_all(args) -> dict:
         sys.exit(1)
 
     run_dir = make_run_dir(pathlib.Path(args.runs_dir), "all")
-    results = {}
+    entries = []
+    start = time.monotonic()
 
     if args.questions:
         sub_dir = run_dir / "mmlu"
         sub_dir.mkdir(parents=True)
-        results["mmlu"] = cmd_mmlu(args, run_dir=sub_dir)
+        entries.append(cmd_mmlu(args, run_dir=sub_dir))
 
     if args.tasks_dir:
         sub_dir = run_dir / "code"
         sub_dir.mkdir(parents=True)
-        results["code"] = cmd_code(args, run_dir=sub_dir)
+        entries.append(cmd_code(args, run_dir=sub_dir))
 
     if args.cases:
         sub_dir = run_dir / "ifeval"
         sub_dir.mkdir(parents=True)
-        results["ifeval"] = cmd_ifeval(args, run_dir=sub_dir)
+        entries.append(cmd_ifeval(args, run_dir=sub_dir))
 
+    elapsed = time.monotonic() - start
+
+    results = {e["mode"]: e["summary"] for e in entries}
     write_summary(run_dir, results)
+
+    global_report_path = report.write_global_report(run_dir, entries, elapsed_s=elapsed)
+    display.print_global_panel(entries, elapsed_s=elapsed, report_path=global_report_path)
+
     return results
 
 

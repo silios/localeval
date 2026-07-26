@@ -192,3 +192,76 @@ def write_report(run_dir: pathlib.Path, mode: str, config: dict, summary: dict, 
 
     path.write_text("\n".join(lines) + "\n")
     return path
+
+
+def write_global_report(run_dir: pathlib.Path, entries: list, elapsed_s: float) -> pathlib.Path:
+    """One combined report for `localeval all`, aggregating every mode
+    that ran into a single overall score/rating, plus a per-mode table
+    linking to each mode's own report. entries: list of
+    {"mode", "model", "summary", "report_path"} dicts, in run order.
+    """
+    model = entries[0]["model"] if entries else "unknown-model"
+    path = run_dir / report_filename(model)
+
+    per_mode_fields = [(e["mode"], score_fields(e["mode"], e["summary"])) for e in entries]
+    overall_earned = sum(f["earned"] for _, f in per_mode_fields)
+    overall_total = sum(f["total"] for _, f in per_mode_fields)
+    overall_run_total = sum(f["run_total"] for _, f in per_mode_fields)
+    overall_counts = {"pass": 0, "partial": 0, "fail": 0, "error": 0}
+    for _, f in per_mode_fields:
+        for k in overall_counts:
+            overall_counts[k] += f["counts"].get(k, 0)
+    overall_pct = (overall_earned / overall_total * 100) if overall_total else 0.0
+    errored = overall_counts["error"]
+
+    lines = [
+        "# localeval all report",
+        "",
+        f"- generated: {datetime.now(timezone.utc).isoformat()}",
+        f"- model: {model}",
+        f"- run_dir: `{run_dir}`",
+        f"- modes: {', '.join(mode for mode, _ in per_mode_fields)}",
+        "",
+        "## Overall Summary",
+        "",
+        f"- **Overall Score:** {overall_earned} / {overall_total}",
+        f"- **Overall Rating:** {display.rating_for(overall_pct)}",
+    ]
+
+    badges = []
+    if overall_counts["pass"]:
+        badges.append(f"✅ {overall_counts['pass']} passed")
+    if overall_counts["partial"]:
+        badges.append(f"⚠ {overall_counts['partial']} partial")
+    if overall_counts["fail"]:
+        badges.append(f"❌ {overall_counts['fail']} failed")
+    if errored:
+        badges.append(f"⛔ {errored} errored")
+    if badges:
+        lines.append(f"- **Results:** {'   '.join(badges)}")
+
+    if overall_run_total != overall_total:
+        scored_or_partial = overall_total + overall_counts["partial"]
+        lines.append(f"- **Coverage:** {scored_or_partial}/{overall_run_total} items produced any response - {errored} never got one.")
+
+    lines.append(f"- **Completed in:** {elapsed_s:.1f}s")
+    lines.append("")
+
+    lines.append("## Per-mode results")
+    lines.append("")
+    lines.append("| Mode | Score | Rating | Report |")
+    lines.append("|---|---|---|---|")
+    for e in entries:
+        f = score_fields(e["mode"], e["summary"])
+        sub_pct = (f["earned"] / f["total"] * 100) if f["total"] else 0.0
+        try:
+            rel_report = pathlib.Path(e["report_path"]).relative_to(run_dir)
+        except ValueError:
+            rel_report = e["report_path"]
+        lines.append(f"| {e['mode']} | {f['earned']}/{f['total']} | {display.rating_for(sub_pct)} | `{rel_report}` |")
+    lines.append("")
+
+    lines.append("Each mode's own report (linked above) has the full per-item breakdown; this file is only the cross-mode rollup.")
+
+    path.write_text("\n".join(lines) + "\n")
+    return path

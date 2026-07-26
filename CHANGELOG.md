@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `localeval all` now writes one additional global report at the top of
+  the run directory, aggregating every mode that ran into a single
+  overall score/rating/coverage view, with a per-mode table linking to
+  each mode's own report - alongside the existing per-mode
+  (mmlu/code/ifeval) reports, which are unchanged. The terminal also
+  prints a combined "All Benchmarks Complete/Incomplete" panel after
+  all included modes finish.
 - The per-run report file now includes a "Benchmark Summary" section
   with the same score, star rating, pass/partial/fail/errored badges,
   and coverage line shown in the terminal's final panel - previously
