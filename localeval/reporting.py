@@ -5,7 +5,8 @@ containing:
   config.json    - the full config used for the run
   results.jsonl  - one JSON object per question/task/case, including the
                    full request sent and the full raw response received
-  summary.json   - the final summary (also printed to the terminal)
+  summary.json   - the final summary (see localeval.display for the
+                   terminal presentation of this data)
 """
 
 from __future__ import annotations
@@ -52,14 +53,3 @@ def _json_default(obj):
 def write_summary(run_dir: pathlib.Path, summary: dict) -> None:
     with open(run_dir / "summary.json", "w") as f:
         json.dump(summary, f, indent=2, default=str)
-
-
-def print_summary(title: str, summary: dict) -> None:
-    print(f"\n=== {title} ===")
-    for key, value in summary.items():
-        if isinstance(value, dict):
-            print(f"{key}:")
-            for k2, v2 in value.items():
-                print(f"  {k2}: {v2}")
-        else:
-            print(f"{key}: {value}")

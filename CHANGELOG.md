@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Rich-based terminal display styled after `tool-eval-bench`'s UI: a
+  live progress bar with a running pass/fail tally, a colored
+  category/constraint breakdown table, and a boxed final summary panel
+  with a 1-5 star rating. Adds `rich` as a dependency.
 - Per-run human-readable debug report (`<date>-<model>-<uuid>-report.md`)
   written alongside `config.json`/`results.jsonl`/`summary.json` for
   `mmlu`, `code`, and `ifeval` runs: config + summary, every

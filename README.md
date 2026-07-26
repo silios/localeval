@@ -22,8 +22,8 @@ never the first letter-like token anywhere in the text.
 
 ## Stack
 
-Python 3.11+, `requests`, standard library. No eval framework
-dependencies.
+Python 3.11+, `requests`, `rich` (terminal output), standard library
+otherwise. No eval framework dependencies.
 
 ## Setup
 
@@ -31,7 +31,7 @@ dependencies.
 cd localeval
 uv venv .venv
 source .venv/bin/activate
-uv pip install requests pytest
+uv pip install requests rich pytest
 ```
 
 (`pytest` is only needed to run the test suite.)
@@ -183,6 +183,16 @@ Outcomes: `pass`, `fail`, `error` (request failed), `unknown_constraint`
 Runs any combination of `--questions`, `--tasks-dir`, `--cases` under one
 timestamped run directory, e.g. `runs/all/20260726T220000Z/{mmlu,code,ifeval}/`.
 At least one must be given.
+
+## Terminal output
+
+Each run shows a live progress bar with a running pass/fail tally, then
+(for `mmlu` and `ifeval`) a colored category/constraint breakdown table
+with a bar per row, then a boxed final summary panel with the model
+name, score, and a 1-5 star rating derived from the pass rate
+(`>=90% Excellent`, `>=75% Good`, `>=50% Fair`, `>=25% Poor`, else `Very
+Poor`). This is styled after `tool-eval-bench`'s terminal UI. See
+`localeval/display.py`.
 
 ## Results files
 

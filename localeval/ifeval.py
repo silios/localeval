@@ -24,6 +24,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from . import display
 from .client import ChatConfig, chat_completion
 
 
@@ -220,12 +221,29 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
     }
 
 
-def run(config: ChatConfig, cases: list, results_writer) -> dict:
+def run(config: ChatConfig, cases: list, results_writer, show_progress: bool = True) -> dict:
     results = []
-    for case in cases:
-        r = evaluate_case(config, case)
-        results.append(r)
-        results_writer.write(r)
+    progress = display.make_progress("IFEval-light") if show_progress else None
+    task_id = progress.add_task("IFEval-light", total=len(cases)) if progress else None
+    if progress:
+        progress.start()
+
+    try:
+        for case in cases:
+            r = evaluate_case(config, case)
+            results.append(r)
+            results_writer.write(r)
+            if progress:
+                passed_so_far = sum(1 for x in results if x["status"] == "pass")
+                failed_so_far = sum(1 for x in results if x["status"] == "fail")
+                progress.update(
+                    task_id,
+                    advance=1,
+                    description=f"IFEval-light  ✅ {passed_so_far}  ❌ {failed_so_far}",
+                )
+    finally:
+        if progress:
+            progress.stop()
 
     total = len(results)
     passed = sum(1 for r in results if r["status"] == "pass")

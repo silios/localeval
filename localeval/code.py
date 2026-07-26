@@ -20,6 +20,7 @@ import pathlib
 import re
 import subprocess
 
+from . import display
 from .client import ChatConfig, chat_completion
 
 CODE_FENCE_RE = re.compile(r"```[a-zA-Z0-9_+-]*\n(.*?)```", re.DOTALL)
@@ -148,12 +149,29 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
     }
 
 
-def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_timeout: int, results_writer) -> dict:
+def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_timeout: int, results_writer, show_progress: bool = True) -> dict:
     results = []
-    for task in tasks:
-        r = run_task(config, task, scratch_root, verify_timeout)
-        results.append(r)
-        results_writer.write(r)
+    progress = display.make_progress("Code") if show_progress else None
+    task_id = progress.add_task("Code", total=len(tasks)) if progress else None
+    if progress:
+        progress.start()
+
+    try:
+        for task in tasks:
+            r = run_task(config, task, scratch_root, verify_timeout)
+            results.append(r)
+            results_writer.write(r)
+            if progress:
+                passed_so_far = sum(1 for x in results if x["status"] == "pass")
+                failed_so_far = sum(1 for x in results if x["status"] == "fail")
+                progress.update(
+                    task_id,
+                    advance=1,
+                    description=f"Code  ✅ {passed_so_far}  ❌ {failed_so_far}",
+                )
+    finally:
+        if progress:
+            progress.stop()
 
     passed = sum(1 for r in results if r["status"] == "pass")
     failed = sum(1 for r in results if r["status"] == "fail")

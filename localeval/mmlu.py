@@ -31,6 +31,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
+from . import display
 from .client import ChatConfig, chat_completion
 
 FINAL_ANSWER_RE = re.compile(r"FINAL ANSWER:\s*([A-D])\b", re.IGNORECASE)
@@ -156,30 +157,47 @@ def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
     )
 
 
-def run(config: ChatConfig, questions: list, concurrency: int, results_writer, limit: int = None) -> dict:
+def run(config: ChatConfig, questions: list, concurrency: int, results_writer, limit: int = None, show_progress: bool = True) -> dict:
     if limit:
         questions = questions[:limit]
 
     records = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
-        futures = {pool.submit(evaluate_question, config, q): q for q in questions}
-        for future in concurrent.futures.as_completed(futures):
-            r = future.result()
-            records.append(
-                {
-                    "id": r.id,
-                    "category": r.category,
-                    "status": r.status,
-                    "extracted_answer": r.extracted_answer,
-                    "correct_answer": r.correct_answer,
-                    "finish_reason": r.finish_reason,
-                    "request": r.request,
-                    "raw_response": r.raw_response,
-                    "response_text": r.response_text,
-                    "error": r.error,
-                }
-            )
-            results_writer.write(records[-1])
+    progress = display.make_progress("MMLU") if show_progress else None
+    task_id = progress.add_task("MMLU", total=len(questions)) if progress else None
+    if progress:
+        progress.start()
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
+            futures = {pool.submit(evaluate_question, config, q): q for q in questions}
+            for future in concurrent.futures.as_completed(futures):
+                r = future.result()
+                records.append(
+                    {
+                        "id": r.id,
+                        "category": r.category,
+                        "status": r.status,
+                        "extracted_answer": r.extracted_answer,
+                        "correct_answer": r.correct_answer,
+                        "finish_reason": r.finish_reason,
+                        "request": r.request,
+                        "raw_response": r.raw_response,
+                        "response_text": r.response_text,
+                        "error": r.error,
+                    }
+                )
+                results_writer.write(records[-1])
+                if progress:
+                    correct_so_far = sum(1 for x in records if x["status"] == "correct")
+                    wrong_so_far = sum(1 for x in records if x["status"] == "wrong")
+                    progress.update(
+                        task_id,
+                        advance=1,
+                        description=f"MMLU  ✅ {correct_so_far}  ❌ {wrong_so_far}",
+                    )
+    finally:
+        if progress:
+            progress.stop()
 
     correct = sum(1 for r in records if r["status"] == "correct")
     wrong = sum(1 for r in records if r["status"] == "wrong")

@@ -5,10 +5,11 @@ from __future__ import annotations
 import argparse
 import pathlib
 import sys
+import time
 
-from . import code, ifeval, mmlu, report
+from . import code, display, ifeval, mmlu, report
 from .client import ChatConfig
-from .reporting import ResultsWriter, make_run_dir, print_summary, write_config, write_summary
+from .reporting import ResultsWriter, make_run_dir, write_config, write_summary
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -54,15 +55,30 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
     write_config(run_dir, cfg)
 
     writer = ResultsWriter(run_dir)
+    start = time.monotonic()
     try:
         summary, results = mmlu.run(config, questions, args.concurrency, writer, limit=args.limit)
     finally:
         writer.close()
+    elapsed = time.monotonic() - start
 
     write_summary(run_dir, summary)
     report_path = report.write_report(run_dir, "mmlu", cfg, summary, results)
-    print_summary(f"MMLU results ({run_dir})", summary)
-    print(f"report: {report_path}")
+
+    breakdown_rows = [
+        (cat, stats["accuracy_pct"], f"{stats['correct']}/{stats['correct'] + stats['wrong']}")
+        for cat, stats in summary["by_category"].items()
+    ]
+    display.print_breakdown("Category Breakdown", breakdown_rows)
+    display.print_final_panel(
+        mode="mmlu",
+        model=args.model,
+        earned=summary["correct"],
+        total=summary["correct"] + summary["wrong"],
+        counts={"pass": summary["correct"], "partial": summary["truncated"] + summary["no_answer"], "fail": summary["wrong"]},
+        elapsed_s=elapsed,
+        report_path=report_path,
+    )
     return summary
 
 
@@ -81,15 +97,25 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
     scratch_root.mkdir(parents=True, exist_ok=True)
 
     writer = ResultsWriter(run_dir)
+    start = time.monotonic()
     try:
         summary, results = code.run(config, tasks, scratch_root, args.verify_timeout, writer)
     finally:
         writer.close()
+    elapsed = time.monotonic() - start
 
     write_summary(run_dir, summary)
     report_path = report.write_report(run_dir, "code", cfg, summary, results)
-    print_summary(f"Code results ({run_dir})", summary)
-    print(f"report: {report_path}")
+
+    display.print_final_panel(
+        mode="code",
+        model=args.model,
+        earned=summary["pass"],
+        total=summary["pass"] + summary["fail"],
+        counts={"pass": summary["pass"], "partial": summary["timeout"] + summary["no_code_block"], "fail": summary["fail"]},
+        elapsed_s=elapsed,
+        report_path=report_path,
+    )
     return summary
 
 
@@ -104,15 +130,30 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
     write_config(run_dir, cfg)
 
     writer = ResultsWriter(run_dir)
+    start = time.monotonic()
     try:
         summary, results = ifeval.run(config, cases, writer)
     finally:
         writer.close()
+    elapsed = time.monotonic() - start
 
     write_summary(run_dir, summary)
     report_path = report.write_report(run_dir, "ifeval", cfg, summary, results)
-    print_summary(f"IFEval-light results ({run_dir})", summary)
-    print(f"report: {report_path}")
+
+    breakdown_rows = [
+        (ct, stats["pass_rate_pct"], f"{stats['pass']}/{stats['pass'] + stats['fail']}")
+        for ct, stats in summary["by_constraint"].items()
+    ]
+    display.print_breakdown("Constraint Breakdown", breakdown_rows)
+    display.print_final_panel(
+        mode="ifeval",
+        model=args.model,
+        earned=summary["pass"],
+        total=summary["pass"] + summary["fail"],
+        counts={"pass": summary["pass"], "partial": summary["other"], "fail": summary["fail"]},
+        elapsed_s=elapsed,
+        report_path=report_path,
+    )
     return summary
 
 
