@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The final terminal summary panel and category/constraint breakdown no
+  longer hide request errors. A run where the server dropped mid-way
+  (e.g. restarted to change `--parallel`) used to show a clean-looking
+  "82/82, Excellent" score with no indication that 117 of 200 questions
+  never got a response - errors were silently excluded from every
+  visible count. The panel now shows an explicit `⛔ N errored` badge, a
+  `Coverage: X/Y items produced any response` line whenever it differs
+  from the scored total, and switches its title to "⚠️ Benchmark
+  Incomplete" (yellow border) instead of "🏆 Benchmark Complete" when
+  any item errored. Per-category/per-constraint breakdown rows also
+  append `(N errored)` to their Earned column. ifeval's summary now
+  separates `error` (request failures) from `other` (bad
+  constraint_type/constraint_params) instead of conflating both into one
+  vague bucket.
+
 ### Added
 
 - MMLU question banks can now also be loaded from a plain-text `.md`/`.txt`

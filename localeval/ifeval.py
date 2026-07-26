@@ -248,18 +248,27 @@ def run(config: ChatConfig, cases: list, results_writer, show_progress: bool = T
     total = len(results)
     passed = sum(1 for r in results if r["status"] == "pass")
     failed = sum(1 for r in results if r["status"] == "fail")
-    errors = sum(1 for r in results if r["status"] in ("error", "unknown_constraint", "checker_error"))
+    # "error" is a request failure - we have zero information about whether
+    # the model would have passed or failed. "other" is a case-authoring
+    # problem (bad constraint_type or bad constraint_params), not a model
+    # or request issue. Keeping these separate matters: silently folding
+    # request errors into a vague "other" bucket is exactly the kind of
+    # masking that produced a false 22.8% MMLU score in a previous harness.
+    errors = sum(1 for r in results if r["status"] == "error")
+    other = sum(1 for r in results if r["status"] in ("unknown_constraint", "checker_error"))
 
     denom = passed + failed
     overall_pct = (passed / denom * 100) if denom else 0.0
 
     by_constraint = {}
     for r in results:
-        ct = by_constraint.setdefault(r["constraint_type"], {"pass": 0, "fail": 0, "other": 0})
+        ct = by_constraint.setdefault(r["constraint_type"], {"pass": 0, "fail": 0, "error": 0, "other": 0})
         if r["status"] == "pass":
             ct["pass"] += 1
         elif r["status"] == "fail":
             ct["fail"] += 1
+        elif r["status"] == "error":
+            ct["error"] += 1
         else:
             ct["other"] += 1
 
@@ -273,7 +282,8 @@ def run(config: ChatConfig, cases: list, results_writer, show_progress: bool = T
         "total": total,
         "pass": passed,
         "fail": failed,
-        "other": errors,
+        "error": errors,
+        "other": other,
         "overall_pass_rate_pct": round(overall_pct, 1),
         "by_constraint": per_constraint_summary,
     }

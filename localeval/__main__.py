@@ -65,19 +65,27 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
     write_summary(run_dir, summary)
     report_path = report.write_report(run_dir, "mmlu", cfg, summary, results)
 
-    breakdown_rows = [
-        (cat, stats["accuracy_pct"], f"{stats['correct']}/{stats['correct'] + stats['wrong']}")
-        for cat, stats in summary["by_category"].items()
-    ]
+    breakdown_rows = []
+    for cat, stats in summary["by_category"].items():
+        earned_str = f"{stats['correct']}/{stats['correct'] + stats['wrong']}"
+        if stats["error"]:
+            earned_str += f" ({stats['error']} errored)"
+        breakdown_rows.append((cat, stats["accuracy_pct"], earned_str))
     display.print_breakdown("Category Breakdown", breakdown_rows)
     display.print_final_panel(
         mode="mmlu",
         model=args.model,
         earned=summary["correct"],
         total=summary["correct"] + summary["wrong"],
-        counts={"pass": summary["correct"], "partial": summary["truncated"] + summary["no_answer"], "fail": summary["wrong"]},
+        counts={
+            "pass": summary["correct"],
+            "partial": summary["truncated"] + summary["no_answer"],
+            "fail": summary["wrong"],
+            "error": summary["error"],
+        },
         elapsed_s=elapsed,
         report_path=report_path,
+        run_total=summary["total"],
     )
     return summary
 
@@ -112,9 +120,15 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
         model=args.model,
         earned=summary["pass"],
         total=summary["pass"] + summary["fail"],
-        counts={"pass": summary["pass"], "partial": summary["timeout"] + summary["no_code_block"], "fail": summary["fail"]},
+        counts={
+            "pass": summary["pass"],
+            "partial": summary["timeout"] + summary["no_code_block"],
+            "fail": summary["fail"],
+            "error": summary["error"],
+        },
         elapsed_s=elapsed,
         report_path=report_path,
+        run_total=summary["total"],
     )
     return summary
 
@@ -140,19 +154,27 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
     write_summary(run_dir, summary)
     report_path = report.write_report(run_dir, "ifeval", cfg, summary, results)
 
-    breakdown_rows = [
-        (ct, stats["pass_rate_pct"], f"{stats['pass']}/{stats['pass'] + stats['fail']}")
-        for ct, stats in summary["by_constraint"].items()
-    ]
+    breakdown_rows = []
+    for ct, stats in summary["by_constraint"].items():
+        earned_str = f"{stats['pass']}/{stats['pass'] + stats['fail']}"
+        if stats["error"]:
+            earned_str += f" ({stats['error']} errored)"
+        breakdown_rows.append((ct, stats["pass_rate_pct"], earned_str))
     display.print_breakdown("Constraint Breakdown", breakdown_rows)
     display.print_final_panel(
         mode="ifeval",
         model=args.model,
         earned=summary["pass"],
         total=summary["pass"] + summary["fail"],
-        counts={"pass": summary["pass"], "partial": summary["other"], "fail": summary["fail"]},
+        counts={
+            "pass": summary["pass"],
+            "partial": summary["other"],
+            "fail": summary["fail"],
+            "error": summary["error"],
+        },
         elapsed_s=elapsed,
         report_path=report_path,
+        run_total=summary["total"],
     )
     return summary
 

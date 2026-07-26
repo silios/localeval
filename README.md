@@ -220,6 +220,13 @@ name, score, and a 1-5 star rating derived from the pass rate
 Poor`). This is styled after `tool-eval-bench`'s terminal UI. See
 `localeval/display.py`.
 
+If any item errored (request failure - connection refused, timeout,
+non-200, malformed response), the score and rating are never allowed to
+look clean: the panel switches to a yellow "⚠️ Benchmark Incomplete"
+title, adds a `⛔ N errored` badge, and prints a `Coverage: X/Y items
+produced any response` line. A run where the server died halfway
+through must never render as a quiet 100%.
+
 ## Results files
 
 Every invocation writes a timestamped directory under `<runs-dir>/<mode>/<timestamp>/`:

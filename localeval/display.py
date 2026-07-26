@@ -71,12 +71,21 @@ def rating_for(pct: float) -> str:
     return f"{'★' * stars}{'☆' * (5 - stars)} {label}"
 
 
-def print_final_panel(mode: str, model: str, earned: int, total: int, counts: dict, elapsed_s: float, report_path) -> None:
+def print_final_panel(mode: str, model: str, earned: int, total: int, counts: dict, elapsed_s: float, report_path, run_total: int = None) -> None:
+    """`total` is the scored denominator (correct+wrong / pass+fail) used
+    for the rating. `run_total` is the full item count attempted,
+    including errors and truncated/no_answer items excluded from that
+    denominator - when it differs from `total`, this is surfaced
+    prominently, never silently. Hiding a run where most items errored
+    out behind a clean-looking score is the exact failure mode this tool
+    exists to avoid.
+    """
     pct = (earned / total * 100) if total else 0.0
+    errored = counts.get("error", 0)
 
     lines = [
         f"[bold]Model:[/bold]  {model or 'unknown'}",
-        f"[bold]Score:[/bold]  [cyan]{earned} / {total}[/cyan]",
+        f"[bold]Score:[/bold]  [cyan]{earned} / {total}[/cyan]  (of items that produced a scorable answer)",
         f"[bold]Rating:[/bold] {rating_for(pct)}",
         "",
     ]
@@ -88,12 +97,22 @@ def print_final_panel(mode: str, model: str, earned: int, total: int, counts: di
         badges.append(f"[yellow]⚠ {counts['partial']} partial[/yellow]")
     if counts.get("fail"):
         badges.append(f"[red]❌ {counts['fail']} failed[/red]")
+    if errored:
+        badges.append(f"[bold red]⛔ {errored} errored[/bold red]")
     if badges:
         lines.append("   ".join(badges))
+        lines.append("")
+
+    if run_total is not None and run_total != total:
+        scored_or_partial = total + counts.get("partial", 0)
+        lines.append(f"[bold yellow]⚠ Coverage: {scored_or_partial}/{run_total} items produced any response - {errored} never got one.[/bold yellow]")
         lines.append("")
 
     lines.append(f"Completed in {elapsed_s:.1f}s   |   localeval {mode}")
     lines.append(f"Report: {report_path}")
 
-    panel = Panel("\n".join(lines), title="🏆 Benchmark Complete", border_style="red", expand=False)
+    incomplete = errored > 0
+    title = "⚠️  Benchmark Incomplete" if incomplete else "🏆 Benchmark Complete"
+    border_style = "yellow" if incomplete else "red"
+    panel = Panel("\n".join(lines), title=title, border_style=border_style, expand=False)
     console.print(panel)
