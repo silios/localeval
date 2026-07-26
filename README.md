@@ -163,6 +163,7 @@ higher accuracy, lower TTFT. Negative deltas (red) mean a regression.
 | `--timeout` | `120` | HTTP request timeout, in seconds |
 | `--concurrency` | `1` | Concurrent in-flight requests. Defaults to 1 because this targets a single-GPU, single-agent local box. |
 | `--runs-dir` | `runs` | Root directory for run outputs |
+| `--dry-run` | `false` | Load and validate the bank without sending requests - prints item counts and category breakdown, catches malformed data before a long run |
 | `--retries` | `2` | Retries on transient request failures (connection error, non-200, malformed response) - never on a real response, including a truncated one |
 | `--retry-backoff` | `1.0` | Seconds before the first retry, doubling each subsequent attempt |
 

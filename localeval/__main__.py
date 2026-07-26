@@ -53,6 +53,9 @@ def run_config_dict(args, mode: str) -> dict:
 
 
 def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
+    if args.dry_run:
+        return _dry_run_mmlu(args)
+
     config = build_chat_config(args)
     questions = mmlu.load_questions(args.questions)
 
@@ -97,6 +100,9 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
 
 
 def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
+    if args.dry_run:
+        return _dry_run_code(args)
+
     config = build_chat_config(args)
     tasks = code.load_tasks(args.tasks_dir)
 
@@ -138,6 +144,9 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
 
 
 def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
+    if args.dry_run:
+        return _dry_run_ifeval(args)
+
     config = build_chat_config(args)
     cases = ifeval.load_cases(args.cases)
 
@@ -182,6 +191,9 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
 
 
 def cmd_all(args) -> dict:
+    if args.dry_run:
+        return _dry_run_all(args)
+
     if not (args.questions or args.tasks_dir or args.cases):
         print("error: `all` needs at least one of --questions, --tasks-dir, --cases", file=sys.stderr)
         sys.exit(1)
@@ -402,6 +414,92 @@ def cmd_compare(args) -> dict:
     return result
 
 
+# ---------------------------------------------------------------------------
+# --dry-run helpers: load and validate banks without sending requests
+# ---------------------------------------------------------------------------
+
+def _dry_run_mmlu(args) -> dict:
+    try:
+        questions = mmlu.load_questions(args.questions)
+    except Exception as exc:
+        print(f"error: failed to load question bank: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.limit and args.limit < len(questions):
+        questions = questions[:args.limit]
+
+    cats = {}
+    for q in questions:
+        cats[q.category] = cats.get(q.category, 0) + 1
+
+    print(f"✓ {len(questions)} questions loaded from {args.questions}")
+    print(f"  {len(cats)} categories")
+    if cats:
+        for cat, count in sorted(cats.items()):
+            print(f"    {cat}: {count}")
+    return {"mode": "mmlu", "questions": len(questions), "categories": len(cats)}
+
+
+def _dry_run_code(args) -> dict:
+    try:
+        tasks = code.load_tasks(args.tasks_dir)
+    except Exception as exc:
+        print(f"error: failed to load tasks: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.limit and args.limit < len(tasks):
+        tasks = tasks[:args.limit]
+
+    print(f"✓ {len(tasks)} tasks loaded from {args.tasks_dir}")
+    for t in tasks:
+        print(f"    {t['name']}  (verify: {t['verify_path'].name})")
+    return {"mode": "code", "tasks": len(tasks)}
+
+
+def _dry_run_ifeval(args) -> dict:
+    try:
+        cases = ifeval.load_cases(args.cases)
+    except Exception as exc:
+        print(f"error: failed to load case file: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if args.limit and args.limit < len(cases):
+        cases = cases[:args.limit]
+
+    from .ifeval import CONSTRAINT_CHECKERS
+
+    unknown = [c for c in cases if c.constraint_type not in CONSTRAINT_CHECKERS]
+
+    print(f"✓ {len(cases)} cases loaded from {args.cases}")
+    cts = {}
+    for c in cases:
+        cts[c.constraint_type] = cts.get(c.constraint_type, 0) + 1
+    for ct, count in sorted(cts.items()):
+        marker = " [UNKNOWN]" if ct not in CONSTRAINT_CHECKERS else ""
+        print(f"    {ct}: {count}{marker}")
+
+    if unknown:
+        print(f"\n⚠ {len(unknown)} case(s) with unknown constraint types (will be marked 'unknown_constraint' at eval time):")
+        for c in unknown:
+            print(f"    {c.id}: {c.constraint_type}")
+
+    return {"mode": "ifeval", "cases": len(cases), "unknown_constraints": len(unknown)}
+
+
+def _dry_run_all(args) -> dict:
+    results = {}
+    if args.questions:
+        results["mmlu"] = _dry_run_mmlu(args)
+    if args.tasks_dir:
+        results["code"] = _dry_run_code(args)
+    if args.cases:
+        results["ifeval"] = _dry_run_ifeval(args)
+    if not results:
+        print("error: `all --dry-run` needs at least one of --questions, --tasks-dir, --cases", file=sys.stderr)
+        sys.exit(1)
+    return results
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="localeval", description="Benchmark a local LLM via a llama.cpp OpenAI-compatible endpoint")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -410,6 +508,7 @@ def main(argv=None) -> int:
     add_common_args(p_mmlu)
     p_mmlu.add_argument("--questions", required=True, help="Path to the JSON question bank")
     p_mmlu.add_argument("--limit", type=int, default=None, help="Only run the first N questions")
+    p_mmlu.add_argument("--dry-run", action="store_true", help="Load and validate the question bank without sending requests")
     p_mmlu.set_defaults(func=cmd_mmlu)
 
     p_code = subparsers.add_parser("code", help="Code generation benchmark")
@@ -418,12 +517,14 @@ def main(argv=None) -> int:
     p_code.add_argument("--verify-timeout", type=int, default=120, help="Seconds before a verify run is marked TIMEOUT")
     p_code.add_argument("--scratch-dir", default=None, help="Where generated code is written (default: <run_dir>/scratch)")
     p_code.add_argument("--limit", type=int, default=None, help="Only run the first N tasks")
+    p_code.add_argument("--dry-run", action="store_true", help="Load and validate task directories without sending requests")
     p_code.set_defaults(func=cmd_code)
 
     p_ifeval = subparsers.add_parser("ifeval", help="IFEval-light instruction-following benchmark")
     add_common_args(p_ifeval)
     p_ifeval.add_argument("--cases", required=True, help="Path to the JSON case file")
     p_ifeval.add_argument("--limit", type=int, default=None, help="Only run the first N cases")
+    p_ifeval.add_argument("--dry-run", action="store_true", help="Load and validate the case file without sending requests")
     p_ifeval.set_defaults(func=cmd_ifeval)
 
     p_all = subparsers.add_parser("all", help="Run all applicable modes in one go")
@@ -434,6 +535,7 @@ def main(argv=None) -> int:
     p_all.add_argument("--verify-timeout", type=int, default=120, help="Seconds before a verify run is marked TIMEOUT (code)")
     p_all.add_argument("--scratch-dir", default=None, help="Where generated code is written (code)")
     p_all.add_argument("--cases", default=None, help="Path to the JSON case file (ifeval)")
+    p_all.add_argument("--dry-run", action="store_true", help="Load and validate all banks without sending requests")
     p_all.set_defaults(func=cmd_all)
 
     p_resume = subparsers.add_parser("resume", help="Rerun only the errored items from a previous run, updating it in place")

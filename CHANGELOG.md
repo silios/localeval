@@ -29,6 +29,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   versions, quantization levels, or prompt changes.
 
 - `localeval resume <run_dir>`: reruns only the items still marked
+
+- `--dry-run` flag for `mmlu`, `code`, `ifeval`, and `all`: loads and
+  validates the question/task/case bank without sending a single
+  request. Prints item counts, category breakdowns, and flags unknown
+  constraint types. Catches malformed data (missing options, bad JSON,
+  missing answer keys) before committing to a long run.
+
+- `localeval resume <run_dir>`: reruns only the items still marked
   `error` in an existing run (reloading the original question/task/case
   bank), and merges the result back into that run directory in place -
   `results.jsonl`, `summary.json`, and the report are all updated,
@@ -117,9 +125,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `localeval sweep`: run the same benchmark across a parameter sweep
   (e.g. `--sweep temperature=0.0,0.3,0.7,1.0`), writing each setting
   into its own sub-directory with an aggregated comparison summary.
-- `--dry-run`: validate that question banks parse, task directories are
-  well-formed, and constraint types are recognized, without sending a
-  single request - catch malformed data before kicking off a long run.
 - Needle-in-a-haystack (`localeval niah`) mode: long-context retrieval
   benchmark. Insert known facts at varying depths into filler text of
   configurable length, test whether the model retrieves them. The
