@@ -108,6 +108,7 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
     request = {"messages": messages, "max_tokens": config.max_tokens, "model": config.model}
 
     result = chat_completion(config, messages)
+    request["attempts"] = result.attempts
     if not result.ok:
         return {
             "name": task["name"],

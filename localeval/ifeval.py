@@ -177,6 +177,7 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
     request = {"messages": messages, "max_tokens": config.max_tokens, "model": config.model}
 
     result = chat_completion(config, messages)
+    request["attempts"] = result.attempts
     if not result.ok:
         return {
             "id": case.id,

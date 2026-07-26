@@ -199,6 +199,7 @@ def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
     request = {"messages": messages, "max_tokens": config.max_tokens, "model": config.model}
 
     result = chat_completion(config, messages)
+    request["attempts"] = result.attempts
 
     if not result.ok:
         return QuestionResult(

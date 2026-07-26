@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `--retries` (default `2`) and `--retry-backoff` (default `1.0`, doubling
+  each attempt) for all modes: transient request failures (connection
+  errors, non-200 status, malformed JSON/response shape) are now retried
+  automatically. A successful response is never retried, including a
+  truncated one (`finish_reason == "length"`) - that is real signal
+  about the model's output, not a transient fault. `results.jsonl` now
+  records `attempts` per item so a retried request is visible in the
+  raw data.
+
 - `localeval all` now writes one additional global report at the top of
   the run directory, aggregating every mode that ran into a single
   overall score/rating/coverage view, with a per-mode table linking to

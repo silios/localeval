@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import time
 
 import requests
 
@@ -14,6 +15,8 @@ class ChatConfig:
     api_key: str = ""
     max_tokens: int = 4096
     timeout: int = 120
+    retries: int = 2
+    retry_backoff: float = 1.0
 
 
 @dataclasses.dataclass
@@ -23,14 +26,10 @@ class ChatResult:
     finish_reason: str = ""
     raw_response: dict | None = None
     error: str = ""
+    attempts: int = 1
 
 
-def chat_completion(config: ChatConfig, messages: list[dict]) -> ChatResult:
-    """Send a single chat completion request and return the outcome.
-
-    Network/HTTP failures are captured in ChatResult.error rather than
-    raised, so a single unreachable request does not abort a whole run.
-    """
+def _attempt(config: ChatConfig, messages: list[dict]) -> ChatResult:
     url = config.base_url.rstrip("/") + "/v1/chat/completions"
     headers = {"Content-Type": "application/json"}
     if config.api_key:
@@ -64,3 +63,23 @@ def chat_completion(config: ChatConfig, messages: list[dict]) -> ChatResult:
         return ChatResult(ok=False, error=f"unexpected response shape: {exc}", raw_response=data)
 
     return ChatResult(ok=True, content=content, finish_reason=finish_reason, raw_response=data)
+
+
+def chat_completion(config: ChatConfig, messages: list[dict]) -> ChatResult:
+    """Send a chat completion request, retrying on transient request failures.
+
+    Retries only apply when the request itself failed (network error,
+    non-200 status, malformed JSON/shape) - a successful response is
+    never retried, including one with finish_reason == "length": that is
+    real signal about the model's output, not a transient fault, and
+    must be returned as-is. Network/HTTP failures are captured in
+    ChatResult.error rather than raised, so a single unreachable request
+    does not abort a whole run.
+    """
+    for attempt in range(1, config.retries + 2):
+        result = _attempt(config, messages)
+        result.attempts = attempt
+        if result.ok or attempt == config.retries + 1:
+            return result
+        if config.retry_backoff > 0:
+            time.sleep(config.retry_backoff * (2 ** (attempt - 1)))

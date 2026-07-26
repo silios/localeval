@@ -20,6 +20,8 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--timeout", type=int, default=120, help="HTTP request timeout in seconds")
     parser.add_argument("--concurrency", type=int, default=1, help="Concurrent in-flight requests")
     parser.add_argument("--runs-dir", default="runs", help="Root directory for run outputs")
+    parser.add_argument("--retries", type=int, default=2, help="Retries on transient request failures (not on a real response)")
+    parser.add_argument("--retry-backoff", type=float, default=1.0, help="Seconds to wait before the first retry, doubling each attempt")
 
 
 def build_chat_config(args) -> ChatConfig:
@@ -29,6 +31,8 @@ def build_chat_config(args) -> ChatConfig:
         api_key=args.api_key,
         max_tokens=args.max_tokens,
         timeout=args.timeout,
+        retries=args.retries,
+        retry_backoff=args.retry_backoff,
     )
 
 
@@ -40,6 +44,8 @@ def run_config_dict(args, mode: str) -> dict:
         "max_tokens": args.max_tokens,
         "timeout": args.timeout,
         "concurrency": args.concurrency,
+        "retries": args.retries,
+        "retry_backoff": args.retry_backoff,
     }
 
 
