@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `localeval list`'s trailer hint (the path printed under the table)
+  used `run_dir.rsplit('/', 3)[0]` plus the mode name, which only
+  produced the right path by coincidence when `--runs-dir` was the
+  default `runs` - any deeper `--runs-dir` had its own directory name
+  truncated away. Replaced with the actual parent directory of
+  `run_dir`, which is correct regardless of how deep `--runs-dir` is.
+
 - `localeval bench` now persists its run like every other mode:
   `config.json`/`results.jsonl` (one line per trial)/`summary.json`
   (median pp/tg t/s overall and per context depth)/a report under

@@ -351,7 +351,8 @@ def print_list_runs(runs: list) -> None:
             r["rating"],
         )
     console.print(table)
-    console.print(f"\n{runs[0]['run_dir'].rsplit('/', 3)[0]}/{runs[0]['mode']}/")
+    mode_dir = runs[0]["run_dir"].rsplit("/", 1)[0]  # run_dir is <runs_root>/<mode>/<timestamp>
+    console.print(f"\n{mode_dir}/")
 
 
 def print_bench_results(results: list, model: str = "", depths: list = None, report_path=None) -> None:
