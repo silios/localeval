@@ -88,6 +88,56 @@ def test_benchmark_uses_correct_payload(monkeypatch):
     assert captured_messages[0] == captured_messages[1]  # identical prompt in both requests
 
 
+def test_each_trial_gets_a_unique_prompt_prefix(monkeypatch):
+    """Every (depth, trial) pair must get a distinct prompt, so no
+    backend's prefix/KV cache can be hit across trials - this is what
+    keeps pp_tokens_per_sec honest on servers that ignore
+    "cache_prompt": false (e.g. LM Studio), not just llama.cpp."""
+    captured = []
+
+    def fake_sync(config, messages):
+        captured.append(messages[0]["content"])
+        return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 1}, "elapsed_ms": 50.0}
+
+    monkeypatch.setattr(bench, "chat_completion_sync", fake_sync)
+
+    bench.run_benchmark(ChatConfig(), depths=[0, 4096], pp_tokens=50, tg_tokens=10, trials=2)
+
+    # 2 depths x 2 trials x 2 requests (pp probe + full gen) = 8 calls,
+    # but only 4 distinct prompts (one per depth/trial pair, shared by
+    # its two requests).
+    assert len(captured) == 8
+    assert len(set(captured)) == 4
+
+
+def test_trial_nonce_is_at_the_start_of_the_prompt(monkeypatch):
+    """A prefix/KV cache matches from byte zero - the nonce must be the
+    very first thing in the content, not appended after shared filler/
+    prompt text, or trials could still share a cacheable common prefix."""
+    captured = []
+
+    def fake_sync(config, messages):
+        captured.append(messages[0]["content"])
+        return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 1}, "elapsed_ms": 50.0}
+
+    monkeypatch.setattr(bench, "chat_completion_sync", fake_sync)
+
+    bench.run_benchmark(ChatConfig(), depths=[4096], pp_tokens=50, tg_tokens=10, trials=2)
+
+    trial_0_content, trial_1_content = captured[0], captured[2]
+    assert trial_0_content.startswith("[bench ")
+    common_prefix_len = 0
+    for a, b in zip(trial_0_content, trial_1_content):
+        if a != b:
+            break
+        common_prefix_len += 1
+    # The two contents diverge inside the nonce label itself (at the
+    # trial number) - a few characters in, not after the (potentially
+    # thousands-of-tokens-long) filler/prompt body that follows it.
+    assert 0 < common_prefix_len < 30
+    assert common_prefix_len < len(trial_0_content) / 10
+
+
 def test_run_benchmark_handles_error(monkeypatch):
     """A failed request still produces a result row with error flag."""
     def fake_sync(config, messages):
@@ -100,6 +150,48 @@ def test_run_benchmark_handles_error(monkeypatch):
     assert len(results) == 1
     assert results[0]["ok"] is False
     assert results[0]["error"] == "connection refused"
+
+
+def test_run_benchmark_marks_trial_invalid_when_pp_probe_is_slower_than_full_gen(monkeypatch):
+    """If request 1 (max_tokens=1) comes back slower than request 2 (the
+    full generation), the subtraction that derives tg_time_ms goes
+    negative - the two requests' timings aren't comparable (jitter, not
+    a real measurement). The trial must be marked invalid, not report a
+    nonsense tg_tokens_per_sec from a floored near-zero tg_time."""
+    def fake_sync(config, messages):
+        if config.max_tokens == 1:
+            return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 1}, "elapsed_ms": 300.0}
+        return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 64}, "elapsed_ms": 250.0}
+
+    monkeypatch.setattr(bench, "chat_completion_sync", fake_sync)
+
+    results = bench.run_benchmark(ChatConfig(), depths=[0], pp_tokens=100, tg_tokens=64, trials=1)
+
+    assert len(results) == 1
+    r = results[0]
+    assert r["ok"] is False
+    assert "invalid timing" in r["error"]
+    assert r["pp_tokens_per_sec"] == 0.0
+    assert r["tg_tokens_per_sec"] == 0.0
+
+
+def test_summarize_excludes_invalid_timing_trials_from_medians():
+    """A trial marked invalid by run_benchmark (ok=False, no real
+    pp/tg numbers) must be excluded from the median the same way a
+    connection failure is - not silently pull the median toward 0."""
+    results = [
+        {"depth": 0, "trial": 1, "pp_tokens": 0, "tg_tokens": 0, "pp_tokens_per_sec": 0.0,
+         "tg_tokens_per_sec": 0.0, "ok": False, "error": "invalid timing: ..."},
+        {"depth": 0, "trial": 2, "pp_tokens": 100, "tg_tokens": 64, "pp_tokens_per_sec": 2000.0,
+         "tg_tokens_per_sec": 300.0, "ok": True, "error": ""},
+    ]
+
+    summary = bench.summarize(results)
+
+    assert summary["error"] == 1
+    assert summary["by_depth"]["0"]["errors"] == 1
+    assert summary["by_depth"]["0"]["pp_tokens_per_sec_median"] == 2000.0
+    assert summary["by_depth"]["0"]["tg_tokens_per_sec_median"] == 300.0
 
 
 def test_summarize_computes_median_per_depth_and_overall():

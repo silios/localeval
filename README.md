@@ -207,15 +207,25 @@ python -m localeval list --filter "qwen*"
 `localeval bench` measures raw server performance: prompt processing speed
 (pp t/s) and text generation speed (tg t/s) at configurable context
 depths. Uses non-streaming requests to get accurate token counts from
-`usage` data. Sends `"cache_prompt": false` (a llama.cpp server
-extension) so repeated trials against the same prompt each get a
-genuine cold prompt pass instead of hitting llama.cpp's prefix cache -
-without it, pp t/s on trial 2+ would spike unrealistically. Run this
-first to establish baseline throughput before capability benchmarks.
+`usage` data. Every trial's prompt is unique (a nonce embedded at the
+very start) so no backend can serve it from a cached prefix - a repeated
+identical prompt would otherwise let trial 2+ hit whatever prefix/KV
+cache the server keeps, making pp t/s spike unrealistically. `"cache_prompt":
+false` (a llama.cpp extension) is also sent as a belt-and-suspenders
+measure for llama.cpp specifically, but the nonce is what makes this work
+on any backend, including ones that ignore that field (confirmed on LM
+Studio). Run this first to establish baseline throughput before
+capability benchmarks.
 
 ```bash
 python -m localeval bench --pp 2048 --tg 128 --depth "0,4096,8192,16384" --trials 3
 ```
+
+If a trial's two internal requests (prompt-only probe, then full
+generation) come back with inconsistent timing - possible on any backend
+under normal request jitter, more likely on small/fast models where
+per-request overhead rivals compute time - it's reported as an errored
+trial (`invalid timing: ...`) rather than a fabricated throughput number.
 
 Like every other mode, `bench` writes `config.json`/`results.jsonl` (one
 line per trial)/`summary.json` (median pp/tg t/s overall and per depth)/

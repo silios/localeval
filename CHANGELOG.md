@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `localeval bench`'s `pp_tokens_per_sec` was unreliable on any backend
+  that ignores the llama.cpp-specific `"cache_prompt": false` extension
+  (confirmed on LM Studio) - since every trial at a given depth sent
+  the byte-identical prompt, the server's own prefix/KV cache made
+  trial 2+ measure a cache hit instead of real prompt processing,
+  producing values that swung wildly between trials and were sometimes
+  *higher* at a larger context depth than a smaller one. Every trial's
+  prompt is now prefixed with a nonce unique to its (depth, trial) pair,
+  so no two trials can ever share a cacheable prefix, regardless of
+  whether the backend honors `cache_prompt`. `cache_prompt: false` is
+  still sent for llama.cpp.
+
+- Fixing the above surfaced a second, previously-hidden bug: deriving
+  `tg_time_ms` by subtracting one request's `pp_time_ms` from a
+  *different* request's `total_ms` can go negative under normal
+  request-to-request timing jitter, especially on small/fast models
+  where per-request overhead rivals actual compute time. This was
+  floored to a minimum and reported anyway, producing nonsense values
+  like `64,000 t/s`. Such trials are now marked invalid (`status:
+  "error"`, with an explanatory message) and excluded from the
+  pp/tg t/s medians, instead of silently reporting a fake number -
+  confirmed against LM Studio, which now correctly reports several
+  `d2048` trials as invalid rather than absurd throughput.
+
 ### Changed
 
 - `localeval bench`'s terminal output is now a single bordered panel

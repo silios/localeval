@@ -11,6 +11,24 @@ Both requests are non-streaming and hit the server with the identical
 prompt, so their timings are directly comparable - unlike mixing a
 streaming call's TTFT with a separate non-streaming call's total time,
 which are two different requests measured two different ways.
+
+Every trial's prompt is prefixed with a nonce unique to that (depth,
+trial) pair, so no two trials ever share a prompt prefix. Without this,
+a server that reuses a KV/prefix cache across requests (llama.cpp
+without "cache_prompt": false, or any backend that ignores that
+extension entirely - e.g. LM Studio) would let trial 2+ hit the cache
+from trial 1's identical prompt, making pp_tokens_per_sec spike
+unboundedly and invert across depths. "cache_prompt": false is still
+sent for llama.cpp, but the nonce is what makes the fix portable to any
+OpenAI-compatible backend regardless of whether it honors that field.
+
+Because the two requests are independent round trips, request-to-
+request timing jitter can occasionally make the max_tokens=1 probe
+(request 1) come back slower than the full generation (request 2) -
+especially on small/fast models where per-request overhead is
+comparable to actual compute time. When that happens the trial is
+marked invalid (status "error") rather than reporting a nonsense
+tg_tokens_per_sec from a near-zero or negative subtraction.
 """
 
 from __future__ import annotations
@@ -65,12 +83,13 @@ def run_benchmark(
         filler = _filler_text(depth) if depth > 0 else ""
 
         for trial in range(trials):
+            nonce = f"[bench depth={depth} trial={trial}] "
             prompt_text = _bench_prompt(pp_tokens)
 
             if filler:
-                content = filler + "\n\n" + prompt_text
+                content = nonce + filler + "\n\n" + prompt_text
             else:
-                content = prompt_text
+                content = nonce + prompt_text
 
             messages = [{"role": "user", "content": content}]
 
@@ -96,16 +115,36 @@ def run_benchmark(
             completion_tokens = (tg_resp.get("usage") or {}).get("completion_tokens", 0)
             tg_ok = tg_resp.get("ok", False)
 
-            tg_time_ms = max(1.0, total_ms - pp_time_ms)
+            tg_time_ms = total_ms - pp_time_ms
 
-            pp_time_s = pp_time_ms / 1000
-            tg_time_s = tg_time_ms / 1000
+            # If the isolated pp probe (request 1) came back slower than
+            # the full generation call (request 2), the two requests'
+            # timings aren't comparable - this is request-to-request
+            # jitter, not a real measurement. Flooring tg_time_ms to some
+            # minimum and reporting a number anyway produces nonsense
+            # (e.g. 64 tokens / 0.001s = 64,000 t/s) - the same silent-
+            # bad-number failure mode this project exists to catch, just
+            # for throughput instead of correctness. Mark the whole trial
+            # invalid instead: with the two requests inconsistent with
+            # each other, neither half of the split is trustworthy.
+            timing_valid = tg_time_ms > 0
 
-            pp_tps = prompt_tokens / pp_time_s if pp_time_s > 0 and prompt_tokens > 0 else 0.0
-            tg_tps = completion_tokens / tg_time_s if tg_time_s > 0 and completion_tokens > 0 else 0.0
+            if timing_valid:
+                pp_time_s = pp_time_ms / 1000
+                tg_time_s = tg_time_ms / 1000
+                pp_tps = prompt_tokens / pp_time_s if pp_time_s > 0 and prompt_tokens > 0 else 0.0
+                tg_tps = completion_tokens / tg_time_s if tg_time_s > 0 and completion_tokens > 0 else 0.0
+            else:
+                pp_tps = 0.0
+                tg_tps = 0.0
 
-            ok = pp_ok and tg_ok
+            ok = pp_ok and tg_ok and timing_valid
             error = pp_resp.get("error", "") or tg_resp.get("error", "")
+            if pp_ok and tg_ok and not timing_valid:
+                error = (
+                    f"invalid timing: pp_time_ms ({pp_time_ms:.1f}) >= "
+                    f"total_ms ({total_ms:.1f}) - request jitter, not a real measurement"
+                )
 
             results.append({
                 "depth": depth,
