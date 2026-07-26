@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Added `requirements.txt` (`requests`, `rich`, unpinned). Nothing
+  previously declared these anywhere in the repo, so a clean clone had
+  no reliable way to know what to install. `README.md`'s setup steps
+  now install from it.
+
 - `--dry-run --limit N` now uses the same stride-sampling
   (`reporting.apply_limit`) as a real run, instead of a plain `[:N]`
   slice. Previously `--dry-run --limit N` could preview a different

@@ -42,10 +42,11 @@ otherwise. No eval framework dependencies.
 cd localeval
 uv venv .venv
 source .venv/bin/activate
-uv pip install requests rich pytest
+uv pip install -r requirements.txt pytest
 ```
 
-(`pytest` is only needed to run the test suite.)
+(`pytest` is only needed to run the test suite; runtime dependencies -
+just `requests` and `rich` - are listed unpinned in `requirements.txt`.)
 
 ## Usage
 
