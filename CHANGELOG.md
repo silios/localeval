@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- All requests are now sent with `stream: true` (SSE) instead of a
+  blocking JSON response, so time-to-first-token (TTFT) and
+  tokens-per-second can be measured per item. `ChatResult` gains
+  `ttft_ms`, `total_tokens`, and `tokens_per_second`; these flow through
+  every mode to `results.jsonl`, are aggregated as p50/p95 into
+  `summary.json` (`latency` object), and are surfaced in the final
+  terminal panel and the per-run report. Backward-compatible: the SSE
+  stream is parsed on the fly and a synthetic non-streaming response
+  dict is stored as `raw_response`, so every downstream consumer sees
+  the same shape it always has.
+
 - `localeval resume <run_dir>`: reruns only the items still marked
   `error` in an existing run (reloading the original question/task/case
   bank), and merges the result back into that run directory in place -
@@ -95,8 +106,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Roadmap
 
+- `localeval compare <run-dir-1> <run-dir-2>`: side-by-side diff of two
+  runs (Δ accuracy, Δ pass rate, per-category deltas) for A/B testing
+  model versions, quantization levels, or prompt changes. Read-only
+  analysis on existing `summary.json` data - no new requests.
+- `localeval sweep`: run the same benchmark across a parameter sweep
+  (e.g. `--sweep temperature=0.0,0.3,0.7,1.0`), writing each setting
+  into its own sub-directory with an aggregated comparison summary.
+- `--dry-run`: validate that question banks parse, task directories are
+  well-formed, and constraint types are recognized, without sending a
+  single request - catch malformed data before kicking off a long run.
+- Needle-in-a-haystack (`localeval niah`) mode: long-context retrieval
+  benchmark. Insert known facts at varying depths into filler text of
+  configurable length, test whether the model retrieves them. The
+  biggest differentiator between local models right now.
+- `--system-prompt` / `--prompt-file` override for all modes, unlocking
+  prompt engineering experiments without code changes.
+- `localeval list-runs`: walk `runs/` and print a summary table (mode,
+  model, timestamp, score, rating, elapsed) with optional
+  `--filter model=Qwen*`, for quick navigation of past results.
 - Optional agentic (multi-turn) generation loop for `code` mode.
-- Retry/backoff for transient request errors, still under `--concurrency 1` by default.
 
 ## [0.1.0] - 2026-07-26
 

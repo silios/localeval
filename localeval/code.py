@@ -128,6 +128,9 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
             "request": request,
             "raw_response": result.raw_response,
             "response_text": result.content,
+            "ttft_ms": result.ttft_ms,
+            "total_tokens": result.total_tokens,
+            "tokens_per_second": result.tokens_per_second,
         }
 
     scratch_dir = scratch_root / task["name"]
@@ -142,6 +145,9 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
             "request": request,
             "raw_response": result.raw_response,
             "response_text": result.content,
+            "ttft_ms": result.ttft_ms,
+            "total_tokens": result.total_tokens,
+            "tokens_per_second": result.tokens_per_second,
         }
 
     solution_path = scratch_dir / task["filename"]
@@ -160,6 +166,9 @@ def run_task(config: ChatConfig, task: dict, scratch_root: pathlib.Path, verify_
         "verify_returncode": verify_result["returncode"],
         "verify_stdout": verify_result["stdout"],
         "verify_stderr": verify_result["stderr"],
+        "ttft_ms": result.ttft_ms,
+        "total_tokens": result.total_tokens,
+        "tokens_per_second": result.tokens_per_second,
     }
 
 
@@ -212,4 +221,5 @@ def summarize(results: list) -> dict:
         "truncated": truncated,
         "error": errors,
         "pass_rate_pct": round(pass_rate, 1),
+        "latency": reporting.latency_stats(results),
     }

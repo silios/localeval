@@ -202,6 +202,9 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
             "request": request,
             "raw_response": result.raw_response,
             "response_text": result.content,
+            "ttft_ms": result.ttft_ms,
+            "total_tokens": result.total_tokens,
+            "tokens_per_second": result.tokens_per_second,
         }
 
     checker = CONSTRAINT_CHECKERS.get(case.constraint_type)
@@ -213,6 +216,9 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
             "request": request,
             "raw_response": result.raw_response,
             "response_text": result.content,
+            "ttft_ms": result.ttft_ms,
+            "total_tokens": result.total_tokens,
+            "tokens_per_second": result.tokens_per_second,
         }
 
     try:
@@ -226,6 +232,9 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
             "request": request,
             "raw_response": result.raw_response,
             "response_text": result.content,
+            "ttft_ms": result.ttft_ms,
+            "total_tokens": result.total_tokens,
+            "tokens_per_second": result.tokens_per_second,
         }
 
     return {
@@ -236,6 +245,9 @@ def evaluate_case(config: ChatConfig, case: Case) -> dict:
         "request": request,
         "raw_response": result.raw_response,
         "response_text": result.content,
+        "ttft_ms": result.ttft_ms,
+        "total_tokens": result.total_tokens,
+        "tokens_per_second": result.tokens_per_second,
     }
 
 
@@ -314,4 +326,5 @@ def summarize(results: list) -> dict:
         "other": other,
         "overall_pass_rate_pct": round(overall_pct, 1),
         "by_constraint": per_constraint_summary,
+        "latency": reporting.latency_stats(results),
     }

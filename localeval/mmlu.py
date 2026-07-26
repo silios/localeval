@@ -189,6 +189,9 @@ class QuestionResult:
     raw_response: dict = None
     response_text: str = ""
     error: str = ""
+    ttft_ms: float = 0.0
+    total_tokens: int = 0
+    tokens_per_second: float = 0.0
 
 
 def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
@@ -221,6 +224,9 @@ def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
             request=request,
             raw_response=result.raw_response,
             response_text=result.content,
+            ttft_ms=result.ttft_ms,
+            total_tokens=result.total_tokens,
+            tokens_per_second=result.tokens_per_second,
         )
 
     status, letter = extract_final_answer(result.content)
@@ -239,6 +245,9 @@ def evaluate_question(config: ChatConfig, q: Question) -> QuestionResult:
         request=request,
         raw_response=result.raw_response,
         response_text=result.content,
+        ttft_ms=result.ttft_ms,
+        total_tokens=result.total_tokens,
+        tokens_per_second=result.tokens_per_second,
     )
 
 
@@ -268,6 +277,9 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
                         "raw_response": r.raw_response,
                         "response_text": r.response_text,
                         "error": r.error,
+                        "ttft_ms": r.ttft_ms,
+                        "total_tokens": r.total_tokens,
+                        "tokens_per_second": r.tokens_per_second,
                     }
                 )
                 results_writer.write(records[-1])
@@ -316,4 +328,5 @@ def summarize(records: list) -> dict:
         "error": errors,
         "accuracy_pct": round(accuracy, 1),
         "by_category": category_summary,
+        "latency": reporting.latency_stats(records),
     }

@@ -73,7 +73,7 @@ def rating_for(pct: float) -> str:
     return f"{'★' * stars}{'☆' * (5 - stars)} {label}"
 
 
-def print_final_panel(mode: str, model: str, earned: int, total: int, counts: dict, elapsed_s: float, report_path, run_total: int = None) -> None:
+def print_final_panel(mode: str, model: str, earned: int, total: int, counts: dict, elapsed_s: float, report_path, run_total: int = None, latency: dict = None) -> None:
     """`total` is the scored denominator (correct+wrong / pass+fail) used
     for the rating. `run_total` is the full item count attempted,
     including errors and truncated/no_answer items excluded from that
@@ -81,6 +81,9 @@ def print_final_panel(mode: str, model: str, earned: int, total: int, counts: di
     prominently, never silently. Hiding a run where most items errored
     out behind a clean-looking score is the exact failure mode this tool
     exists to avoid.
+
+    `latency` is an optional dict with p50/p95 TTFT and tokens/sec,
+    surfaced when timing data is available.
     """
     pct = (earned / total * 100) if total else 0.0
     errored = counts.get("error", 0)
@@ -108,6 +111,13 @@ def print_final_panel(mode: str, model: str, earned: int, total: int, counts: di
     if run_total is not None and run_total != total:
         scored_or_partial = total + counts.get("partial", 0)
         lines.append(f"[bold yellow]⚠ Coverage: {scored_or_partial}/{run_total} items produced any response - {errored} never got one.[/bold yellow]")
+        lines.append("")
+
+    if latency and latency.get("timed_items"):
+        timed = latency["timed_items"]
+        lines.append(f"[bold]Latency[/bold] (p50 / p95, {timed} items)")
+        lines.append(f"  TTFT:         {latency['ttft_p50_ms']:.0f}ms / {latency['ttft_p95_ms']:.0f}ms")
+        lines.append(f"  tokens/sec:   {latency['tps_p50']:.1f} / {latency['tps_p95']:.1f}")
         lines.append("")
 
     lines.append(f"Completed in {elapsed_s:.1f}s   |   localeval {mode}")

@@ -91,6 +91,7 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
         elapsed_s=elapsed,
         report_path=report_path,
         run_total=fields["run_total"],
+        latency=fields["latency"],
     )
     return {"mode": "mmlu", "model": args.model, "summary": summary, "report_path": report_path}
 
@@ -131,6 +132,7 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
         elapsed_s=elapsed,
         report_path=report_path,
         run_total=fields["run_total"],
+        latency=fields["latency"],
     )
     return {"mode": "code", "model": args.model, "summary": summary, "report_path": report_path}
 
@@ -174,6 +176,7 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
         elapsed_s=elapsed,
         report_path=report_path,
         run_total=fields["run_total"],
+        latency=fields["latency"],
     )
     return {"mode": "ifeval", "model": args.model, "summary": summary, "report_path": report_path}
 
@@ -358,6 +361,7 @@ def cmd_resume(args) -> dict:
         elapsed_s=result["elapsed_s"],
         report_path=result["report_path"],
         run_total=fields["run_total"],
+        latency=fields["latency"],
     )
     print(f"Resumed {result['resumed']} errored item(s); {result['still_errored']} still errored.")
     return result

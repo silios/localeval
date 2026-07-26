@@ -140,6 +140,27 @@ untouched.
 | `--retries` | `2` | Retries on transient request failures (connection error, non-200, malformed response) - never on a real response, including a truncated one |
 | `--retry-backoff` | `1.0` | Seconds before the first retry, doubling each subsequent attempt |
 
+### Timing metrics
+
+All requests are sent with `stream: true` so the client can measure
+time-to-first-token (TTFT) and token throughput (tokens/sec) - not just
+total wall-clock time. The final panel and per-run report show p50/p95
+latency for every item that produced a scorable response (truncated,
+no_answer, error items still carry timing fields if the server responded
+at all).
+
+Per-item fields in `results.jsonl`:
+
+| Field | Meaning |
+|---|---|
+| `ttft_ms` | Milliseconds from request sent to first content delta |
+| `total_tokens` | `completion_tokens` from `usage` in the final SSE chunk |
+| `tokens_per_second` | `total_tokens / decode_time` (generation only, excludes TTFT) |
+
+`summary.json` gains a `latency` object with aggregated `ttft_p50_ms`,
+`ttft_p95_ms`, `tps_p50`, `tps_p95`, and `timed_items` (the count of
+items that contributed timing data).
+
 ### `mmlu` mode
 
 ```
@@ -323,7 +344,8 @@ Every invocation writes a timestamped directory under `<runs-dir>/<mode>/<timest
 - `results.jsonl` - one JSON object per question/task/case, including the
   **full** request sent and the **full, untruncated** raw response
   received (never an excerpt - this is what made the original bug
-  invisible)
+  invisible). Also includes per-item timing fields: `ttft_ms`,
+  `total_tokens`, and `tokens_per_second`. See [Timing metrics](#timing-metrics).
 - `summary.json` - the same summary printed to the terminal
 - `<date>-<model>-<uuid>-report.md` - a human-readable debug report: a
   "Benchmark Summary" section with the same score, star rating,

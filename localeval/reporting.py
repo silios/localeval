@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import math
 import pathlib
 from datetime import datetime, timezone
 
@@ -68,6 +69,37 @@ def write_summary(run_dir: pathlib.Path, summary: dict) -> None:
         json.dump(summary, f, indent=2, default=str)
 
 
+def latency_stats(results: list) -> dict:
+    """Compute p50/p95 TTFT and tokens/sec from a list of result records.
+
+    Only records with ttft_ms > 0 and tokens_per_second > 0 are included
+    (errors and records from pre-timing runs have defaults of 0.0).
+    Returns an empty dict when no timing data is available.
+    """
+    ttft_vals = sorted(r["ttft_ms"] for r in results if r.get("ttft_ms", 0) > 0)
+    tps_vals = sorted(r["tokens_per_second"] for r in results if r.get("tokens_per_second", 0) > 0)
+
+    if not ttft_vals:
+        return {}
+
+    def _pctl(sorted_vals: list, p: float) -> float:
+        if not sorted_vals:
+            return 0.0
+        k = (p / 100) * (len(sorted_vals) - 1)
+        lo = int(k)
+        hi = min(lo + 1, len(sorted_vals) - 1)
+        frac = k - lo
+        return round(sorted_vals[lo] + frac * (sorted_vals[hi] - sorted_vals[lo]), 1)
+
+    return {
+        "ttft_p50_ms": _pctl(ttft_vals, 50),
+        "ttft_p95_ms": _pctl(ttft_vals, 95),
+        "tps_p50": _pctl(tps_vals, 50),
+        "tps_p95": _pctl(tps_vals, 95),
+        "timed_items": len(ttft_vals),
+    }
+
+
 def score_fields(mode: str, summary: dict) -> dict:
     """Derive the (earned, total, run_total, counts) fields used by both
     the terminal final panel and the per-run report, so the two never
@@ -103,4 +135,11 @@ def score_fields(mode: str, summary: dict) -> dict:
     else:
         raise ValueError(f"unknown mode: {mode}")
 
-    return {"earned": earned, "total": total, "run_total": summary["total"], "counts": counts}
+    latency = summary.get("latency", {}) or {}
+    return {
+        "earned": earned,
+        "total": total,
+        "run_total": summary["total"],
+        "counts": counts,
+        "latency": latency,
+    }

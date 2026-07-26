@@ -147,6 +147,13 @@ def _benchmark_summary_section(mode: str, model: str, summary: dict, elapsed_s: 
         scored_or_partial = total + counts.get("partial", 0)
         lines.append(f"- **Coverage:** {scored_or_partial}/{run_total} items produced any response - {errored} never got one.")
 
+    latency = fields.get("latency") or {}
+    if latency.get("timed_items"):
+        timed = latency["timed_items"]
+        lines.append(f"- **Latency** (p50 / p95, {timed} items)")
+        lines.append(f"  - TTFT: {latency['ttft_p50_ms']:.0f}ms / {latency['ttft_p95_ms']:.0f}ms")
+        lines.append(f"  - tokens/sec: {latency['tps_p50']:.1f} / {latency['tps_p95']:.1f}")
+
     lines.append(f"- **Completed in:** {elapsed_s:.1f}s")
     lines.append("")
     return lines
