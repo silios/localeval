@@ -220,6 +220,13 @@ def chat_completion_sync(config: ChatConfig, messages: list[dict]) -> dict:
     prompt_tokens and completion_tokens from the usage block - data
     that llama.cpp does not send in streaming SSE mode.
 
+    Sends "cache_prompt": false, a llama.cpp server extension (ignored
+    by strictly OpenAI-compatible backends as an unknown field). Without
+    it, back-to-back bench trials against the same prompt hit llama.cpp's
+    prompt-prefix cache on the second and later calls, making pp_time
+    collapse toward zero and pp_tokens_per_sec spike unboundedly - each
+    trial needs a genuine cold prompt pass to be a valid measurement.
+
     Returns a dict with: ok, content, usage, elapsed_ms, error.
     Does NOT retry (bench failures are informational, not retryable).
     """
@@ -232,6 +239,7 @@ def chat_completion_sync(config: ChatConfig, messages: list[dict]) -> dict:
         "messages": messages,
         "max_tokens": config.max_tokens,
         "stream": False,
+        "cache_prompt": False,
     }
     if config.model:
         payload["model"] = config.model

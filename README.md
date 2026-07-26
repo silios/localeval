@@ -168,8 +168,11 @@ python -m localeval list --filter "qwen*"
 `localeval bench` measures raw server performance: prompt processing speed
 (pp t/s) and text generation speed (tg t/s) at configurable context
 depths. Uses non-streaming requests to get accurate token counts from
-`usage` data. Run this first to establish baseline throughput before
-capability benchmarks.
+`usage` data. Sends `"cache_prompt": false` (a llama.cpp server
+extension) so repeated trials against the same prompt each get a
+genuine cold prompt pass instead of hitting llama.cpp's prefix cache -
+without it, pp t/s on trial 2+ would spike unrealistically. Run this
+first to establish baseline throughput before capability benchmarks.
 
 ```bash
 python -m localeval bench --pp 2048 --tg 128 --depth "0,4096,8192,16384" --trials 3

@@ -52,9 +52,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   performance: prompt processing speed (pp t/s) and text generation
   speed (tg t/s) at configurable context depths. Uses non-streaming
   requests to get accurate `usage.prompt_tokens` and
-  `usage.completion_tokens`. Configurable via `--pp`, `--tg`,
-  `--depth` (comma-separated depths), and `--trials`. Run first to
-  establish baseline throughput before capability benchmarks.
+  `usage.completion_tokens`. Sends `"cache_prompt": false` (llama.cpp
+  extension) so repeated trials against the same prompt aren't
+  artificially sped up by prompt-prefix caching. Configurable via
+  `--pp`, `--tg`, `--depth` (comma-separated depths), and `--trials`.
+  Run first to establish baseline throughput before capability
+  benchmarks.
 
 - `localeval resume <run_dir>`: reruns only the items still marked
   `error` in an existing run (reloading the original question/task/case

@@ -1,18 +1,21 @@
 """Throughput benchmark: measures prompt processing and text generation
 speed at configurable context depths.
 
-Uses two requests per trial:
-1. Non-streaming: gets accurate prompt_tokens + completion_tokens from usage
-2. Streaming: gets accurate TTFT and total elapsed time (our streaming
-   parser correctly handles reasoning models by ignoring reasoning_content
-   deltas and only counting content deltas)
+Uses two non-streaming requests per trial, both against the same prompt:
+1. max_tokens=1 - isolates prompt processing time, since generating a
+   single token adds negligible time on top of processing the prompt.
+2. max_tokens=tg_tokens - the full generation; its total elapsed time
+   minus the pp_time measured in step 1 gives the generation time.
+
+Both requests are non-streaming and hit the server with the identical
+prompt, so their timings are directly comparable - unlike mixing a
+streaming call's TTFT with a separate non-streaming call's total time,
+which are two different requests measured two different ways.
 """
 
 from __future__ import annotations
 
-import time
-
-from .client import ChatConfig, chat_completion, chat_completion_sync
+from .client import ChatConfig, chat_completion_sync
 
 
 def _filler_text(tokens: int) -> str:
@@ -45,14 +48,16 @@ def run_benchmark(
 ) -> list[dict]:
     """Run a throughput benchmark at each context depth.
 
-    Two requests per trial:
-    1. Non-streaming → usage.prompt_tokens + usage.completion_tokens
-    2. Streaming → accurate TTFT (prompt processing time) and total
-       elapsed. Our SSE parser correctly measures time-to-first-content
-       for reasoning models (ignores reasoning_content deltas).
+    Two non-streaming requests per trial, both sent with the identical
+    prompt:
+    1. max_tokens=1 -> elapsed_ms isolates prompt processing time (pp_time),
+       since generating one token adds negligible time on top of it.
+    2. max_tokens=tg_tokens -> elapsed_ms is the total time for prompt
+       processing + full generation; tg_time is that total minus the
+       pp_time measured in step 1.
 
-    pp_tps = prompt_tokens / TTFT
-    tg_tps = completion_tokens / (total_time - TTFT)
+    pp_tps = prompt_tokens / pp_time
+    tg_tps = completion_tokens / tg_time
     """
     results = []
 
@@ -69,40 +74,29 @@ def run_benchmark(
 
             messages = [{"role": "user", "content": content}]
 
-            # --- Step 1: non-streaming for token counts ---
-            sync_config = ChatConfig(
+            # --- Step 1: max_tokens=1 isolates prompt processing time ---
+            pp_config = ChatConfig(
+                base_url=config.base_url, model=config.model,
+                api_key=config.api_key, max_tokens=1,
+                timeout=config.timeout,
+            )
+            pp_resp = chat_completion_sync(pp_config, messages)
+            pp_time_ms = pp_resp.get("elapsed_ms", 0)
+            prompt_tokens = (pp_resp.get("usage") or {}).get("prompt_tokens", 0)
+            pp_ok = pp_resp.get("ok", False)
+
+            # --- Step 2: full generation ---
+            tg_config = ChatConfig(
                 base_url=config.base_url, model=config.model,
                 api_key=config.api_key, max_tokens=tg_tokens,
                 timeout=config.timeout,
             )
-            sync_resp = chat_completion_sync(sync_config, messages)
-            usage = sync_resp.get("usage") or {}
-            prompt_tokens = usage.get("prompt_tokens", 0)
-            completion_tokens = usage.get("completion_tokens", 0)
-            sync_ok = sync_resp.get("ok", False)
-            sync_error = sync_resp.get("error", "")
+            tg_resp = chat_completion_sync(tg_config, messages)
+            total_ms = tg_resp.get("elapsed_ms", 0)
+            completion_tokens = (tg_resp.get("usage") or {}).get("completion_tokens", 0)
+            tg_ok = tg_resp.get("ok", False)
 
-            # --- Step 2: streaming for accurate timing ---
-            stream_config = ChatConfig(
-                base_url=config.base_url, model=config.model,
-                api_key=config.api_key, max_tokens=tg_tokens,
-                timeout=config.timeout,
-            )
-            stream_resp = chat_completion(stream_config, messages)
-            ttft_ms = stream_resp.ttft_ms  # time to first content token
-            stream_ok = stream_resp.ok
-
-            # Derive times
-            # total elapsed is harder from streaming. Use TTFT and estimate
-            # from token rate. Or we measure total time ourselves.
-            # Actually: we don't have total_ms from the streaming ChatResult.
-            # Let's compute: total ≈ ttft + (completion_tokens / estimated_tps)
-            # That's circular. Better: add total_ms to ChatResult.
-
-            # For now, use sync elapsed as total, streaming TTFT as pp_time
-            total_ms = sync_resp.get("elapsed_ms", 0)
-            pp_time_ms = ttft_ms
-            tg_time_ms = max(1, total_ms - pp_time_ms)
+            tg_time_ms = max(1.0, total_ms - pp_time_ms)
 
             pp_time_s = pp_time_ms / 1000
             tg_time_s = tg_time_ms / 1000
@@ -110,8 +104,8 @@ def run_benchmark(
             pp_tps = prompt_tokens / pp_time_s if pp_time_s > 0 and prompt_tokens > 0 else 0.0
             tg_tps = completion_tokens / tg_time_s if tg_time_s > 0 and completion_tokens > 0 else 0.0
 
-            ok = sync_ok and stream_ok
-            error = sync_error or ("" if stream_ok else "streaming request failed")
+            ok = pp_ok and tg_ok
+            error = pp_resp.get("error", "") or tg_resp.get("error", "")
 
             results.append({
                 "depth": depth,
@@ -120,8 +114,8 @@ def run_benchmark(
                 "tg_tokens": completion_tokens,
                 "pp_tokens_per_sec": round(pp_tps, 1),
                 "tg_tokens_per_sec": round(tg_tps, 1),
-                "ttft_ms": round(ttft_ms, 1),
-                "total_ms": total_ms,
+                "pp_time_ms": round(pp_time_ms, 1),
+                "total_ms": round(total_ms, 1),
                 "ok": ok,
                 "error": error,
             })
