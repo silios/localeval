@@ -283,6 +283,10 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
         if progress:
             progress.stop()
 
+    return summarize(records), records
+
+
+def summarize(records: list) -> dict:
     correct = sum(1 for r in records if r["status"] == "correct")
     wrong = sum(1 for r in records if r["status"] == "wrong")
     truncated = sum(1 for r in records if r["status"] == "truncated")
@@ -303,7 +307,7 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
         acc = (counts["correct"] / denom * 100) if denom else 0.0
         category_summary[cat] = {"accuracy_pct": round(acc, 1), **counts}
 
-    summary = {
+    return {
         "total": len(records),
         "correct": correct,
         "wrong": wrong,
@@ -313,4 +317,3 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
         "accuracy_pct": round(accuracy, 1),
         "by_category": category_summary,
     }
-    return summary, records

@@ -189,6 +189,10 @@ def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_time
         if progress:
             progress.stop()
 
+    return summarize(results), results
+
+
+def summarize(results: list) -> dict:
     passed = sum(1 for r in results if r["status"] == "pass")
     failed = sum(1 for r in results if r["status"] == "fail")
     timeout = sum(1 for r in results if r["status"] == "timeout")
@@ -199,7 +203,7 @@ def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_time
     denominator = passed + failed
     pass_rate = (passed / denominator * 100) if denominator else 0.0
 
-    summary = {
+    return {
         "total": len(results),
         "pass": passed,
         "fail": failed,
@@ -209,4 +213,3 @@ def run(config: ChatConfig, tasks: list, scratch_root: pathlib.Path, verify_time
         "error": errors,
         "pass_rate_pct": round(pass_rate, 1),
     }
-    return summary, results

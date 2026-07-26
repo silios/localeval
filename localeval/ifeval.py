@@ -265,6 +265,10 @@ def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show
         if progress:
             progress.stop()
 
+    return summarize(results), results
+
+
+def summarize(results: list) -> dict:
     total = len(results)
     passed = sum(1 for r in results if r["status"] == "pass")
     failed = sum(1 for r in results if r["status"] == "fail")
@@ -301,7 +305,7 @@ def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show
         pct = (counts["pass"] / d * 100) if d else 0.0
         per_constraint_summary[ct] = {"pass_rate_pct": round(pct, 1), **counts}
 
-    summary = {
+    return {
         "total": total,
         "pass": passed,
         "fail": failed,
@@ -311,4 +315,3 @@ def run(config: ChatConfig, cases: list, results_writer, limit: int = None, show
         "overall_pass_rate_pct": round(overall_pct, 1),
         "by_constraint": per_constraint_summary,
     }
-    return summary, results
