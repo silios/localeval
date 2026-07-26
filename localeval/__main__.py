@@ -6,7 +6,7 @@ import argparse
 import pathlib
 import sys
 
-from . import code, ifeval, mmlu
+from . import code, ifeval, mmlu, report
 from .client import ChatConfig
 from .reporting import ResultsWriter, make_run_dir, print_summary, write_config, write_summary
 
@@ -55,12 +55,14 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
 
     writer = ResultsWriter(run_dir)
     try:
-        summary = mmlu.run(config, questions, args.concurrency, writer, limit=args.limit)
+        summary, results = mmlu.run(config, questions, args.concurrency, writer, limit=args.limit)
     finally:
         writer.close()
 
     write_summary(run_dir, summary)
+    report_path = report.write_report(run_dir, "mmlu", cfg, summary, results)
     print_summary(f"MMLU results ({run_dir})", summary)
+    print(f"report: {report_path}")
     return summary
 
 
@@ -80,12 +82,14 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
 
     writer = ResultsWriter(run_dir)
     try:
-        summary = code.run(config, tasks, scratch_root, args.verify_timeout, writer)
+        summary, results = code.run(config, tasks, scratch_root, args.verify_timeout, writer)
     finally:
         writer.close()
 
     write_summary(run_dir, summary)
+    report_path = report.write_report(run_dir, "code", cfg, summary, results)
     print_summary(f"Code results ({run_dir})", summary)
+    print(f"report: {report_path}")
     return summary
 
 
@@ -101,12 +105,14 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
 
     writer = ResultsWriter(run_dir)
     try:
-        summary = ifeval.run(config, cases, writer)
+        summary, results = ifeval.run(config, cases, writer)
     finally:
         writer.close()
 
     write_summary(run_dir, summary)
+    report_path = report.write_report(run_dir, "ifeval", cfg, summary, results)
     print_summary(f"IFEval-light results ({run_dir})", summary)
+    print(f"report: {report_path}")
     return summary
 
 

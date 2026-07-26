@@ -160,13 +160,12 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
     if limit:
         questions = questions[:limit]
 
-    results = []
+    records = []
     with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, concurrency)) as pool:
         futures = {pool.submit(evaluate_question, config, q): q for q in questions}
         for future in concurrent.futures.as_completed(futures):
             r = future.result()
-            results.append(r)
-            results_writer.write(
+            records.append(
                 {
                     "id": r.id,
                     "category": r.category,
@@ -180,20 +179,21 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
                     "error": r.error,
                 }
             )
+            results_writer.write(records[-1])
 
-    correct = sum(1 for r in results if r.status == "correct")
-    wrong = sum(1 for r in results if r.status == "wrong")
-    truncated = sum(1 for r in results if r.status == "truncated")
-    no_answer = sum(1 for r in results if r.status == "no_answer")
-    errors = sum(1 for r in results if r.status == "error")
+    correct = sum(1 for r in records if r["status"] == "correct")
+    wrong = sum(1 for r in records if r["status"] == "wrong")
+    truncated = sum(1 for r in records if r["status"] == "truncated")
+    no_answer = sum(1 for r in records if r["status"] == "no_answer")
+    errors = sum(1 for r in records if r["status"] == "error")
 
     denominator = correct + wrong
     accuracy = (correct / denominator * 100) if denominator else 0.0
 
     by_category = {}
-    for r in results:
-        cat = by_category.setdefault(r.category, {"correct": 0, "wrong": 0, "truncated": 0, "no_answer": 0, "error": 0})
-        cat[r.status] += 1
+    for r in records:
+        cat = by_category.setdefault(r["category"], {"correct": 0, "wrong": 0, "truncated": 0, "no_answer": 0, "error": 0})
+        cat[r["status"]] += 1
 
     category_summary = {}
     for cat, counts in by_category.items():
@@ -201,8 +201,8 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
         acc = (counts["correct"] / denom * 100) if denom else 0.0
         category_summary[cat] = {"accuracy_pct": round(acc, 1), **counts}
 
-    return {
-        "total": len(results),
+    summary = {
+        "total": len(records),
         "correct": correct,
         "wrong": wrong,
         "truncated": truncated,
@@ -211,3 +211,4 @@ def run(config: ChatConfig, questions: list, concurrency: int, results_writer, l
         "accuracy_pct": round(accuracy, 1),
         "by_category": category_summary,
     }
+    return summary, records

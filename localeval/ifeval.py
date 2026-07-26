@@ -251,7 +251,7 @@ def run(config: ChatConfig, cases: list, results_writer) -> dict:
         pct = (counts["pass"] / d * 100) if d else 0.0
         per_constraint_summary[ct] = {"pass_rate_pct": round(pct, 1), **counts}
 
-    return {
+    summary = {
         "total": total,
         "pass": passed,
         "fail": failed,
@@ -259,3 +259,4 @@ def run(config: ChatConfig, cases: list, results_writer) -> dict:
         "overall_pass_rate_pct": round(overall_pct, 1),
         "by_constraint": per_constraint_summary,
     }
+    return summary, results

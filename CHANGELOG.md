@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Per-run human-readable debug report (`<date>-<model>-<uuid>-report.md`)
+  written alongside `config.json`/`results.jsonl`/`summary.json` for
+  `mmlu`, `code`, and `ifeval` runs: config + summary, every
+  non-passing item with details and a response excerpt, and a compact
+  table of all items. `results.jsonl` remains the full raw backing data.
+
 ### Roadmap
 
 - Optional agentic (multi-turn) generation loop for `code` mode.
