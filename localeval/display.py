@@ -185,3 +185,100 @@ def print_global_panel(entries: list, elapsed_s: float, report_path) -> None:
     border_style = "yellow" if incomplete else "red"
     panel = Panel("\n".join(lines), title=title, border_style=border_style, expand=False)
     console.print(panel)
+
+
+def _delta_str(delta, suffix: str = "") -> str:
+    """Format a delta value with color: green for positive (improvement),
+    red for negative (regression), dim for zero."""
+    if isinstance(delta, str) or delta is None:
+        return "-"
+    if delta > 0:
+        return f"[green]+{delta:.1f}{suffix}[/green]"
+    elif delta < 0:
+        return f"[red]{delta:.1f}{suffix}[/red]"
+    return f"[dim]{delta:.1f}{suffix}[/dim]"
+
+
+def print_compare(result: dict, model_a: str = "", model_b: str = "") -> None:
+    """Side-by-side comparison of two runs, rendered as Rich tables.
+
+    result: the dict returned by compare.diff_summaries()
+    model_a: model name for the baseline (run 1)
+    model_b: model name for the comparison (run 2)
+    """
+    mode = result["mode"]
+    ov = result["overall"]
+    group_label = "Constraints" if mode == "ifeval" else "Categories"
+    groups = result.get("constraints") or result.get("categories") or {}
+
+    # --- Overall comparison ---
+    lines = [
+        f"[bold]Mode:[/bold] {mode}",
+        f"[bold]A (baseline):[/bold] {model_a or 'run 1'}",
+        f"[bold]B (compare):[/bold]  {model_b or 'run 2'}",
+        "",
+        f"[bold]Score:[/bold]  [cyan]{ov['earned_a']}/{ov['total_a']}[/cyan]  →  [cyan]{ov['earned_b']}/{ov['total_b']}[/cyan]",
+        f"[bold]Δ:[/bold]      {_delta_str(ov['earned_delta'], '')} items  ({_delta_str(ov['pct_delta'], ' pp')})",
+    ]
+
+    if ov["errors_a"] or ov["errors_b"]:
+        lines.append(f"[bold]Errors:[/bold] {ov['errors_a']} → {ov['errors_b']}")
+
+    lines.append("")
+    panel = Panel("\n".join(lines), title="📊 Compare Runs", border_style="blue", expand=False)
+    console.print(panel)
+
+    # --- Per-category / per-constraint table ---
+    if groups:
+        table = Table(title=f"{group_label} Breakdown", title_style="bold", box=None)
+        table.add_column(group_label[:-1])  # singular
+        table.add_column("A", justify="right")
+        table.add_column("B", justify="right")
+        table.add_column("Δ", justify="right")
+        for name, g in groups.items():
+            color = CATEGORY_COLORS[hash(name) % len(CATEGORY_COLORS)]
+            name_cell = Text(name, style=color)
+            if isinstance(g["pct_a"], str):
+                a_cell, b_cell, d_cell = "-", f"{g['pct_b']:.0f}%", "-"
+            elif isinstance(g["pct_b"], str):
+                a_cell, b_cell, d_cell = f"{g['pct_a']:.0f}%", "-", "-"
+            else:
+                a_cell = f"{g['pct_a']:.0f}%"
+                b_cell = f"{g['pct_b']:.0f}%"
+                d_cell = _delta_str(g["pct_delta"], " pp")
+            table.add_row(name_cell, a_cell, b_cell, d_cell)
+        console.print(table)
+        console.print("")
+
+    # --- Latency comparison ---
+    latency = result.get("latency") or {}
+    if latency:
+        table = Table(title="Latency (p50 / p95)", title_style="bold", box=None)
+        table.add_column("Metric")
+        table.add_column("A", justify="right")
+        table.add_column("B", justify="right")
+        table.add_column("Δ", justify="right")
+        for label, field_a, field_b, field_d, suffix in [
+            ("TTFT p50", "ttft_p50_ms_a", "ttft_p50_ms_b", "ttft_p50_delta_ms", "ms"),
+            ("TTFT p95", "ttft_p95_ms_a", "ttft_p95_ms_b", "ttft_p95_delta_ms", "ms"),
+            ("tok/s p50", "tps_p50_a", "tps_p50_b", "tps_p50_delta", ""),
+            ("tok/s p95", "tps_p95_a", "tps_p95_b", "tps_p95_delta", ""),
+        ]:
+            if field_a in latency and field_b in latency:
+                a_val = f"{latency[field_a]:.0f}{suffix}" if suffix else f"{latency[field_a]:.1f}"
+                b_val = f"{latency[field_b]:.0f}{suffix}" if suffix else f"{latency[field_b]:.1f}"
+                # For TTFT, negative delta = faster = good (= green)
+                # For tok/s, positive delta = faster = good (= green)
+                delta_val = latency.get(field_d)
+                if delta_val is not None:
+                    is_good = (delta_val < 0 and "ttft" in field_d) or (delta_val > 0 and "tps" in field_d)
+                    if is_good:
+                        d_text = f"[green]{delta_val:+.1f}{suffix}[/green]"
+                    elif delta_val == 0:
+                        d_text = f"[dim]{delta_val:.1f}{suffix}[/dim]"
+                    else:
+                        d_text = f"[red]{delta_val:+.1f}{suffix}[/red]"
+                else:
+                    d_text = "-"
+                table.add_row(label, a_val, b_val, d_text)
+        console.print(table)

@@ -137,6 +137,21 @@ to what the original run's `config.json` used. If nothing is left in
 `error` state, `resume` does nothing and leaves the run directory
 untouched.
 
+### Comparing two runs
+
+`localeval compare <run-dir-1> <run-dir-2>` loads the `summary.json` from
+two run directories of the same mode and prints a side-by-side diff:
+overall score Δ, per-category/per-constraint breakdown with colored
+deltas, and latency comparison (p50/p95 TTFT and tokens/sec). Pure
+read-only analysis - no requests sent.
+
+```bash
+python -m localeval compare runs/mmlu/20260726T191940Z runs/mmlu/20260726T193151Z
+```
+
+Positive deltas (green) mean run 2 did better - more correct answers,
+higher accuracy, lower TTFT. Negative deltas (red) mean a regression.
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |

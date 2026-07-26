@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   dict is stored as `raw_response`, so every downstream consumer sees
   the same shape it always has.
 
+- `localeval compare <run-dir-1> <run-dir-2>`: side-by-side diff of two
+  run directories of the same mode. Pure read-only analysis: loads
+  `summary.json` from each, diffs overall score (Δ earned, Δ pct),
+  per-category/per-constraint breakdown with colored deltas, and latency
+  (p50/p95 TTFT and tokens/sec). Positive deltas are green (run 2 did
+  better), negative are red (regression). Useful for A/B testing model
+  versions, quantization levels, or prompt changes.
+
 - `localeval resume <run_dir>`: reruns only the items still marked
   `error` in an existing run (reloading the original question/task/case
   bank), and merges the result back into that run directory in place -
@@ -106,10 +114,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Roadmap
 
-- `localeval compare <run-dir-1> <run-dir-2>`: side-by-side diff of two
-  runs (Δ accuracy, Δ pass rate, per-category deltas) for A/B testing
-  model versions, quantization levels, or prompt changes. Read-only
-  analysis on existing `summary.json` data - no new requests.
 - `localeval sweep`: run the same benchmark across a parameter sweep
   (e.g. `--sweep temperature=0.0,0.3,0.7,1.0`), writing each setting
   into its own sub-directory with an aggregated comparison summary.

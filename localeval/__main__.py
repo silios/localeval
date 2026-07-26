@@ -8,7 +8,7 @@ import pathlib
 import sys
 import time
 
-from . import code, display, ifeval, mmlu, report
+from . import code, compare, display, ifeval, mmlu, report
 from .client import ChatConfig
 from .reporting import ResultsWriter, make_run_dir, score_fields, write_config, write_summary
 
@@ -367,6 +367,41 @@ def cmd_resume(args) -> dict:
     return result
 
 
+def cmd_compare(args) -> dict:
+    """Compare two run directories of the same mode."""
+    dir_a = pathlib.Path(args.run_dir_a)
+    dir_b = pathlib.Path(args.run_dir_b)
+
+    for label, d in [("first", dir_a), ("second", dir_b)]:
+        if not (d / "config.json").exists():
+            print(f"error: {d} is not a run directory (missing config.json)", file=sys.stderr)
+            sys.exit(1)
+        if not (d / "summary.json").exists():
+            print(f"error: {d} has no summary.json (run may be incomplete)", file=sys.stderr)
+            sys.exit(1)
+
+    with open(dir_a / "config.json") as f:
+        cfg_a = json.load(f)
+    with open(dir_b / "config.json") as f:
+        cfg_b = json.load(f)
+
+    mode_a = cfg_a.get("mode", "")
+    mode_b = cfg_b.get("mode", "")
+
+    if mode_a != mode_b:
+        print(f"error: cannot compare runs of different modes ({mode_a} vs {mode_b})", file=sys.stderr)
+        sys.exit(1)
+
+    with open(dir_a / "summary.json") as f:
+        summary_a = json.load(f)
+    with open(dir_b / "summary.json") as f:
+        summary_b = json.load(f)
+
+    result = compare.diff_summaries(mode_a, summary_a, summary_b)
+    display.print_compare(result, model_a=cfg_a.get("model", ""), model_b=cfg_b.get("model", ""))
+    return result
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="localeval", description="Benchmark a local LLM via a llama.cpp OpenAI-compatible endpoint")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -413,6 +448,11 @@ def main(argv=None) -> int:
     p_resume.add_argument("--retry-backoff", type=float, default=None, help="Override retry backoff stored in the original run's config")
     p_resume.add_argument("--verify-timeout", type=int, default=None, help="Override verify timeout stored in the original run's config (code mode)")
     p_resume.set_defaults(func=cmd_resume)
+
+    p_compare = subparsers.add_parser("compare", help="Side-by-side diff of two run directories")
+    p_compare.add_argument("run_dir_a", help="Path to the first (baseline) run directory")
+    p_compare.add_argument("run_dir_b", help="Path to the second (comparison) run directory")
+    p_compare.set_defaults(func=cmd_compare)
 
     args = parser.parse_args(argv)
     args.func(args)
