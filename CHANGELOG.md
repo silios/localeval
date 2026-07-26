@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Refreshed `assets/localeval-all-output.svg` to reflect the current
+  code base (previously predated most of the code-task bank, the
+  system-prompt override, and the border-color fix above). Added
+  `assets/localeval-bench-output.svg` showing `localeval bench`'s
+  throughput output, since bench didn't exist when the README's
+  screenshot was last generated.
+
 ### Fixed
 
 - `localeval list`'s trailer hint (the path printed under the table)

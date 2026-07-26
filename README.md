@@ -31,6 +31,11 @@ table, and a final summary panel with a star rating, pass/fail/error
 badges, per-item latency (p50/p95 TTFT and tokens/sec), and a link to
 the full per-run report.
 
+`localeval bench` measuring prompt-processing and generation throughput
+at increasing context depths:
+
+![localeval bench terminal output](assets/localeval-bench-output.svg)
+
 ## Stack
 
 Python 3.11+, `requests`, `rich` (terminal output), standard library
