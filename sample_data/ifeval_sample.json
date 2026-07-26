@@ -1,0 +1,38 @@
+[
+  {
+    "id": "c1",
+    "prompt": "Write a sentence about the ocean using exactly 10 words.",
+    "constraint_type": "exact_word_count",
+    "constraint_params": {"n": 10}
+  },
+  {
+    "id": "c2",
+    "prompt": "Describe a cat without using the word 'cat'.",
+    "constraint_type": "must_not_include",
+    "constraint_params": {"word": "cat"}
+  },
+  {
+    "id": "c3",
+    "prompt": "Reply with a JSON object with a single key 'ok' set to true. Output only the JSON, nothing else.",
+    "constraint_type": "valid_json",
+    "constraint_params": {}
+  },
+  {
+    "id": "c4",
+    "prompt": "List exactly 3 fruits as bullet points, one per line, each starting with '-'.",
+    "constraint_type": "exact_bullet_count",
+    "constraint_params": {"n": 3}
+  },
+  {
+    "id": "c5",
+    "prompt": "Write two sentences about the weather, avoiding the letter 'e' entirely.",
+    "constraint_type": "forbidden_letter",
+    "constraint_params": {"letter": "e"}
+  },
+  {
+    "id": "c6",
+    "prompt": "Respond entirely in lowercase, describing your favorite color.",
+    "constraint_type": "all_lowercase",
+    "constraint_params": {}
+  }
+]

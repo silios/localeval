@@ -1,0 +1,44 @@
+[
+  {
+    "id": "q1",
+    "category": "arithmetic",
+    "question": "What is 7 + 5?",
+    "options": ["10", "11", "12", "13"],
+    "answer": "C"
+  },
+  {
+    "id": "q2",
+    "category": "arithmetic",
+    "question": "What is 9 * 3?",
+    "options": ["24", "27", "28", "30"],
+    "answer": "B"
+  },
+  {
+    "id": "q3",
+    "category": "geography",
+    "question": "What is the capital of France?",
+    "options": ["Berlin", "Madrid", "Paris", "Rome"],
+    "answer": "C"
+  },
+  {
+    "id": "q4",
+    "category": "geography",
+    "question": "Which ocean is the largest?",
+    "options": ["Atlantic", "Indian", "Arctic", "Pacific"],
+    "answer": "D"
+  },
+  {
+    "id": "q5",
+    "category": "logic",
+    "question": "If all bloops are razzies and all razzies are lazzies, are all bloops lazzies?",
+    "options": ["Yes", "No", "Cannot be determined", "Only sometimes"],
+    "answer": "A"
+  },
+  {
+    "id": "q6",
+    "category": "science",
+    "question": "What gas do plants primarily absorb for photosynthesis?",
+    "options": ["Oxygen", "Nitrogen", "Carbon dioxide", "Hydrogen"],
+    "answer": "C"
+  }
+]
