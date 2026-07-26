@@ -308,3 +308,43 @@ def print_list_runs(runs: list) -> None:
         )
     console.print(table)
     console.print(f"\n{runs[0]['run_dir'].rsplit('/', 3)[0]}/{runs[0]['mode']}/")
+
+
+def print_bench_results(results: list, model: str = "", depths: list = None) -> None:
+    """Print throughput benchmark results as a Rich table.
+
+    results: list of dicts from bench.run_benchmark()
+    """
+    panel = Panel(
+        f"[bold]Model:[/bold] {model or 'unknown'}\n"
+        f"[bold]Depths:[/bold] {depths or []}\n"
+        f"[bold]Runs:[/bold] {len(results)} total",
+        title="⚡ Throughput Benchmark",
+        border_style="purple",
+    )
+    console.print(panel)
+    console.print("")
+
+    table = Table(title="Bench Results", title_style="bold", box=None)
+    table.add_column("Depth")
+    table.add_column("pp t/s", justify="right")
+    table.add_column("tg t/s", justify="right")
+    table.add_column("Total (ms)", justify="right")
+    table.add_column("Tokens", justify="right")
+
+    for r in results:
+        if not r.get("ok"):
+            table.add_row(
+                f"d{r['depth']}",
+                "-", "-", "-",
+                f"[red]{r.get('error', 'error')}[/red]",
+            )
+        else:
+            depth_label = f"d{r['depth']}"
+            pp = f"{r['pp_tokens_per_sec']:,.0f}"
+            tg = f"{r['tg_tokens_per_sec']:,.0f}"
+            total = f"{r['total_ms']:,.0f}"
+            tokens = f"{r['pp_tokens']}+{r['tg_tokens']}"
+            table.add_row(depth_label, pp, tg, total, tokens)
+
+    console.print(table)

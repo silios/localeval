@@ -95,17 +95,18 @@ def _parse_sse_stream(resp) -> ChatResult:
             delta = choice.get("delta", {})
             delta_role = delta.get("role", "")
             delta_content = delta.get("content", "")
+            delta_reasoning = delta.get("reasoning_content", "")
             chunk_finish = choice.get("finish_reason")
 
-            if delta_role and not delta_content:
+            if delta_role and not delta_content and not delta_reasoning:
                 # Role-only delta (e.g. {"role":"assistant","content":""}).
-                # Don't count this as the first token.
                 role = delta_role
-            elif delta_content:
+            elif delta_content or delta_reasoning:
                 if not first_content_seen:
                     ttft_ms = (time.monotonic() - t_start) * 1000
                     first_content_seen = True
-                content_parts.append(delta_content)
+                if delta_content:
+                    content_parts.append(delta_content)
 
             if chunk_finish:
                 finish_reason = chunk_finish
@@ -210,3 +211,52 @@ def chat_completion(config: ChatConfig, messages: list[dict]) -> ChatResult:
             return result
         if config.retry_backoff > 0:
             time.sleep(config.retry_backoff * (2 ** (attempt - 1)))
+
+
+def chat_completion_sync(config: ChatConfig, messages: list[dict]) -> dict:
+    """Send a single non-streaming request and return usage + timing.
+
+    Used by the throughput benchmark (localeval bench) where we need
+    prompt_tokens and completion_tokens from the usage block - data
+    that llama.cpp does not send in streaming SSE mode.
+
+    Returns a dict with: ok, content, usage, elapsed_ms, error.
+    Does NOT retry (bench failures are informational, not retryable).
+    """
+    url = config.base_url.rstrip("/") + "/v1/chat/completions"
+    headers = {"Content-Type": "application/json"}
+    if config.api_key:
+        headers["Authorization"] = f"Bearer {config.api_key}"
+
+    payload = {
+        "messages": messages,
+        "max_tokens": config.max_tokens,
+        "stream": False,
+    }
+    if config.model:
+        payload["model"] = config.model
+
+    t0 = time.monotonic()
+    try:
+        resp = requests.post(url, json=payload, headers=headers, timeout=config.timeout)
+    except requests.RequestException as exc:
+        return {"ok": False, "error": f"request failed: {exc}", "elapsed_ms": 0}
+
+    elapsed_ms = (time.monotonic() - t0) * 1000
+
+    if resp.status_code != 200:
+        return {"ok": False, "error": f"HTTP {resp.status_code}", "elapsed_ms": elapsed_ms}
+
+    try:
+        data = resp.json()
+        choice = data["choices"][0]
+        content = choice["message"]["content"]
+        usage = data.get("usage", {})
+        return {
+            "ok": True,
+            "content": content,
+            "usage": usage,
+            "elapsed_ms": round(elapsed_ms, 1),
+        }
+    except (json.JSONDecodeError, KeyError, IndexError, TypeError) as exc:
+        return {"ok": False, "error": f"bad response: {exc}", "elapsed_ms": elapsed_ms}

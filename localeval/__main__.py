@@ -8,7 +8,7 @@ import pathlib
 import sys
 import time
 
-from . import code, compare, display, ifeval, mmlu, report
+from . import bench, code, compare, display, ifeval, mmlu, report
 from .client import ChatConfig
 from .reporting import ResultsWriter, make_run_dir, score_fields, write_config, write_summary
 
@@ -576,6 +576,23 @@ def cmd_list(args) -> None:
     display.print_list_runs(runs)
 
 
+def cmd_bench(args) -> dict:
+    """Run a throughput benchmark at configurable context depths."""
+    config = build_chat_config(args)
+    depths = [int(d.strip()) for d in args.depth.split(",")]
+
+    results = bench.run_benchmark(
+        config,
+        depths=depths,
+        pp_tokens=args.pp,
+        tg_tokens=args.tg,
+        trials=args.trials,
+    )
+
+    display.print_bench_results(results, model=config.model, depths=depths)
+    return {"mode": "bench", "results": results}
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="localeval", description="Benchmark a local LLM via a llama.cpp OpenAI-compatible endpoint")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -636,6 +653,14 @@ def main(argv=None) -> int:
     p_list.add_argument("--runs-dir", default="runs", help="Root directory for run outputs")
     p_list.add_argument("--filter", default=None, help="Filter by model name (glob, e.g. 'qwen*')")
     p_list.set_defaults(func=cmd_list)
+
+    p_bench = subparsers.add_parser("bench", help="Throughput benchmark at configurable context depths")
+    add_common_args(p_bench)
+    p_bench.add_argument("--pp", type=int, default=2048, help="Prompt processing tokens")
+    p_bench.add_argument("--tg", type=int, default=128, help="Text generation tokens")
+    p_bench.add_argument("--depth", default="0,4096,8192,16384", help="Comma-separated context depths to test")
+    p_bench.add_argument("--trials", type=int, default=3, help="Number of runs per depth")
+    p_bench.set_defaults(func=cmd_bench)
 
     args = parser.parse_args(argv)
     args.func(args)

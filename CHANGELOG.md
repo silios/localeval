@@ -48,6 +48,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   role-playing) without code changes. For mmlu, the default prompt
   includes a `FINAL ANSWER: X` instruction - override must include it.
 
+- `localeval bench`: throughput benchmark that measures raw server
+  performance: prompt processing speed (pp t/s) and text generation
+  speed (tg t/s) at configurable context depths. Uses non-streaming
+  requests to get accurate `usage.prompt_tokens` and
+  `usage.completion_tokens`. Configurable via `--pp`, `--tg`,
+  `--depth` (comma-separated depths), and `--trials`. Run first to
+  establish baseline throughput before capability benchmarks.
+
 - `localeval resume <run_dir>`: reruns only the items still marked
   `error` in an existing run (reloading the original question/task/case
   bank), and merges the result back into that run directory in place -

@@ -163,6 +163,18 @@ python -m localeval list
 python -m localeval list --filter "qwen*"
 ```
 
+### Throughput benchmark
+
+`localeval bench` measures raw server performance: prompt processing speed
+(pp t/s) and text generation speed (tg t/s) at configurable context
+depths. Uses non-streaming requests to get accurate token counts from
+`usage` data. Run this first to establish baseline throughput before
+capability benchmarks.
+
+```bash
+python -m localeval bench --pp 2048 --tg 128 --depth "0,4096,8192,16384" --trials 3
+```
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |
