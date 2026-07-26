@@ -104,6 +104,28 @@ per-stream decode speed (more so with speculative decoding enabled,
 e.g. `--spec-type draft-mtp`) - measure wall-clock time before assuming
 higher concurrency is actually faster end-to-end.
 
+### Resuming a run after transient failures
+
+`--retries`/`--retry-backoff` recover most transient failures inline,
+but if the server was restarted or dropped mid-run despite that, some
+items can still end up with `status: "error"`. Rather than re-running
+the whole bank, `localeval resume <run_dir>` reloads the original
+question/task/case bank, reruns only the items still marked `error`,
+and merges the result back into that same run directory in place -
+`results.jsonl`, `summary.json`, and the report are all updated, and
+every other item is left untouched:
+
+```bash
+python -m localeval resume runs/mmlu/20260726T193151Z
+```
+
+Any shared option (`--base-url`, `--model`, `--max-tokens`, `--timeout`,
+`--concurrency`, `--retries`, `--retry-backoff`, and `--verify-timeout`
+for `code`) can be overridden on resume; anything not passed falls back
+to what the original run's `config.json` used. If nothing is left in
+`error` state, `resume` does nothing and leaves the run directory
+untouched.
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |

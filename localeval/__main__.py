@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import pathlib
 import sys
 import time
@@ -10,6 +11,8 @@ import time
 from . import code, display, ifeval, mmlu, report
 from .client import ChatConfig
 from .reporting import ResultsWriter, make_run_dir, score_fields, write_config, write_summary
+
+MODE_MODULES = {"mmlu": mmlu, "code": code, "ifeval": ifeval}
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
@@ -210,6 +213,156 @@ def cmd_all(args) -> dict:
     return results
 
 
+class _NullWriter:
+    """Discards records instead of appending to results.jsonl.
+
+    resume_run reruns only a subset of items and merges them back into
+    the full results.jsonl itself, so the per-item incremental append
+    that ResultsWriter does during a fresh run would just leave stray
+    partial data behind.
+    """
+
+    def write(self, record: dict) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+
+def resume_run(run_dir: pathlib.Path, config: ChatConfig, concurrency: int, verify_timeout: int = None) -> dict:
+    """Rerun only the errored items from an existing run, updating it in place.
+
+    "Errored" means a request failure (network error, non-200, malformed
+    response) - not truncated/wrong/no_answer/fail, which are legitimate
+    scoring outcomes, not something to silently retry away.
+    """
+    config_path = run_dir / "config.json"
+    results_path = run_dir / "results.jsonl"
+
+    with open(config_path) as f:
+        cfg = json.load(f)
+    mode = cfg["mode"]
+    if mode not in MODE_MODULES:
+        raise ValueError(f"resume is not supported for mode {mode!r}")
+
+    records = []
+    with open(results_path) as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                records.append(json.loads(line))
+
+    key_field = "name" if mode == "code" else "id"
+    errored_keys = {r[key_field] for r in records if r["status"] == "error"}
+
+    if not errored_keys:
+        return {"mode": mode, "resumed": 0, "run_dir": run_dir}
+
+    writer = _NullWriter()
+    start = time.monotonic()
+    if mode == "mmlu":
+        questions = mmlu.load_questions(cfg["questions_file"])
+        subset = [q for q in questions if q.id in errored_keys]
+        _, new_records = mmlu.run(config, subset, concurrency, writer, limit=None)
+    elif mode == "code":
+        tasks = code.load_tasks(cfg["tasks_dir"])
+        subset = [t for t in tasks if t["name"] in errored_keys]
+        scratch_root = run_dir / "scratch"
+        scratch_root.mkdir(parents=True, exist_ok=True)
+        vt = verify_timeout if verify_timeout is not None else cfg.get("verify_timeout", 120)
+        _, new_records = code.run(config, subset, scratch_root, vt, writer, limit=None)
+    else:
+        cases = ifeval.load_cases(cfg["cases_file"])
+        subset = [c for c in cases if c.id in errored_keys]
+        _, new_records = ifeval.run(config, subset, writer, limit=None)
+    elapsed = time.monotonic() - start
+
+    by_key = {r[key_field]: r for r in new_records}
+    merged = [by_key.get(r[key_field], r) for r in records]
+
+    with open(results_path, "w") as f:
+        for r in merged:
+            f.write(json.dumps(r, default=str) + "\n")
+
+    summary = MODE_MODULES[mode].summarize(merged)
+    write_summary(run_dir, summary)
+
+    for old_report in run_dir.glob("*-report.md"):
+        old_report.unlink()
+    report_path = report.write_report(run_dir, mode, cfg, summary, merged, elapsed_s=elapsed)
+
+    return {
+        "mode": mode,
+        "resumed": len(errored_keys),
+        "still_errored": sum(1 for r in merged if r["status"] == "error"),
+        "summary": summary,
+        "elapsed_s": elapsed,
+        "report_path": report_path,
+        "run_dir": run_dir,
+    }
+
+
+def cmd_resume(args) -> dict:
+    run_dir = pathlib.Path(args.run_dir)
+    if not (run_dir / "config.json").exists() or not (run_dir / "results.jsonl").exists():
+        print(f"error: {run_dir} is not a run directory (missing config.json/results.jsonl)", file=sys.stderr)
+        sys.exit(1)
+
+    with open(run_dir / "config.json") as f:
+        cfg = json.load(f)
+
+    config = ChatConfig(
+        base_url=args.base_url if args.base_url is not None else cfg["base_url"],
+        model=args.model if args.model is not None else cfg["model"],
+        api_key=args.api_key if args.api_key is not None else cfg.get("api_key", ""),
+        max_tokens=args.max_tokens if args.max_tokens is not None else cfg["max_tokens"],
+        timeout=args.timeout if args.timeout is not None else cfg["timeout"],
+        retries=args.retries if args.retries is not None else cfg.get("retries", 2),
+        retry_backoff=args.retry_backoff if args.retry_backoff is not None else cfg.get("retry_backoff", 1.0),
+    )
+    concurrency = args.concurrency if args.concurrency is not None else cfg.get("concurrency", 1)
+
+    result = resume_run(run_dir, config, concurrency, verify_timeout=args.verify_timeout)
+
+    if result["resumed"] == 0:
+        print(f"Nothing to resume: no errored items in {run_dir}")
+        return result
+
+    mode = result["mode"]
+    summary = result["summary"]
+    fields = score_fields(mode, summary)
+
+    if mode == "mmlu":
+        breakdown_rows = []
+        for cat, stats in summary["by_category"].items():
+            earned_str = f"{stats['correct']}/{stats['correct'] + stats['wrong']}"
+            if stats["error"]:
+                earned_str += f" ({stats['error']} errored)"
+            breakdown_rows.append((cat, stats["accuracy_pct"], earned_str))
+        display.print_breakdown("Category Breakdown", breakdown_rows)
+    elif mode == "ifeval":
+        breakdown_rows = []
+        for ct, stats in summary["by_constraint"].items():
+            earned_str = f"{stats['pass']}/{stats['pass'] + stats['fail']}"
+            if stats["error"]:
+                earned_str += f" ({stats['error']} errored)"
+            breakdown_rows.append((ct, stats["pass_rate_pct"], earned_str))
+        display.print_breakdown("Constraint Breakdown", breakdown_rows)
+
+    display.print_final_panel(
+        mode=mode,
+        model=config.model,
+        earned=fields["earned"],
+        total=fields["total"],
+        counts=fields["counts"],
+        elapsed_s=result["elapsed_s"],
+        report_path=result["report_path"],
+        run_total=fields["run_total"],
+    )
+    print(f"Resumed {result['resumed']} errored item(s); {result['still_errored']} still errored.")
+    return result
+
+
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="localeval", description="Benchmark a local LLM via a llama.cpp OpenAI-compatible endpoint")
     subparsers = parser.add_subparsers(dest="mode", required=True)
@@ -243,6 +396,19 @@ def main(argv=None) -> int:
     p_all.add_argument("--scratch-dir", default=None, help="Where generated code is written (code)")
     p_all.add_argument("--cases", default=None, help="Path to the JSON case file (ifeval)")
     p_all.set_defaults(func=cmd_all)
+
+    p_resume = subparsers.add_parser("resume", help="Rerun only the errored items from a previous run, updating it in place")
+    p_resume.add_argument("run_dir", help="Path to an existing run directory, e.g. runs/mmlu/20260726T193151Z")
+    p_resume.add_argument("--base-url", default=None, help="Override the base URL stored in the original run's config")
+    p_resume.add_argument("--model", default=None, help="Override the model name stored in the original run's config")
+    p_resume.add_argument("--api-key", default=None, help="Override the API key stored in the original run's config")
+    p_resume.add_argument("--max-tokens", type=int, default=None, help="Override max_tokens stored in the original run's config")
+    p_resume.add_argument("--timeout", type=int, default=None, help="Override the request timeout stored in the original run's config")
+    p_resume.add_argument("--concurrency", type=int, default=None, help="Override concurrency stored in the original run's config")
+    p_resume.add_argument("--retries", type=int, default=None, help="Override retries stored in the original run's config")
+    p_resume.add_argument("--retry-backoff", type=float, default=None, help="Override retry backoff stored in the original run's config")
+    p_resume.add_argument("--verify-timeout", type=int, default=None, help="Override verify timeout stored in the original run's config (code mode)")
+    p_resume.set_defaults(func=cmd_resume)
 
     args = parser.parse_args(argv)
     args.func(args)

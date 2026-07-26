@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `localeval resume <run_dir>`: reruns only the items still marked
+  `error` in an existing run (reloading the original question/task/case
+  bank), and merges the result back into that run directory in place -
+  `results.jsonl`, `summary.json`, and the report are all updated,
+  every other item is left untouched, and the stale report is replaced
+  rather than left alongside the new one. Any shared option can be
+  overridden on resume; anything omitted falls back to the original
+  run's `config.json`. A no-op (with a message, no file changes) if
+  nothing is left in `error` state.
+
 - `--retries` (default `2`) and `--retry-backoff` (default `1.0`, doubling
   each attempt) for all modes: transient request failures (connection
   errors, non-200 status, malformed JSON/response shape) are now retried
