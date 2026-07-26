@@ -65,9 +65,10 @@ python -m localeval all    --questions sample_data/mmlu_sample.json \
 localeval mmlu --questions FILE [--limit N]
 ```
 
-**Question bank format** (JSON, chosen over a hand-rolled text format
-because `json.loads` is both less code and far less fragile than parsing
-a line-based mini-syntax):
+**Question bank format** - dispatched on file extension:
+
+**`.json`** (the default recommendation - `json.loads` is less code and
+far less fragile than parsing a line-based mini-syntax):
 
 ```json
 [
@@ -83,6 +84,31 @@ a line-based mini-syntax):
 
 `options` is a 4-element list mapped to A/B/C/D in order. `answer` is the
 correct letter.
+
+**`.md` / `.txt`** - a plain-text bank, useful for keeping a
+human-editable question set with its answer key visually separated from
+the part you'd paste to a model:
+
+```
+## QUESTIONS (paste this section only - no answers included)
+
+### Elementary Mathematics
+1. What is 15% of 200?  A. 20  B. 30  C. 25  D. 40
+2. What is the least common multiple of 4 and 6?  A. 10  B. 12  C. 24  D. 8
+
+## ANSWER KEY (do not paste to the model - for scoring only)
+
+1-C 2-B
+```
+
+`### Category Name` headings apply to every numbered question line until
+the next heading. Each question line must have exactly 4 options,
+separated from the question text and from each other by two or more
+spaces, in the form `A. ...  B. ...  C. ...  D. ...`. The answer key is
+parsed as `N-LETTER` tokens (whitespace-separated, order-independent)
+from everything after the `## ANSWER KEY` heading. A missing answer key
+entry or a question line without exactly 4 options raises an error
+naming the question number, rather than silently skipping it.
 
 Each question is sent with a system prompt instructing the model to
 finish with a line reading `FINAL ANSWER: X`. Per-question outcome:

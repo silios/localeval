@@ -1,6 +1,8 @@
 """MMLU-style multiple-choice benchmark mode.
 
-Question bank format: a JSON file containing a list of objects:
+Two question bank formats are supported, dispatched on file extension:
+
+1. `.json` - a JSON file containing a list of objects:
 
     [
       {
@@ -13,8 +15,17 @@ Question bank format: a JSON file containing a list of objects:
       ...
     ]
 
-`options` is a 4-element list corresponding to A, B, C, D. `answer` is the
-correct letter.
+   `options` is a 4-element list corresponding to A, B, C, D. `answer` is
+   the correct letter.
+
+2. `.md` / `.txt` - a plain-text bank with a `## QUESTIONS` section
+   containing `### Category Name` headings followed by numbered lines:
+
+    1. What is 15% of 200?  A. 20  B. 30  C. 25  D. 40
+
+   and a separate `## ANSWER KEY` section with space-separated
+   `N-LETTER` tokens (e.g. `1-C 2-B 3-A`), so the answer key can be kept
+   out of what gets pasted to a model under test.
 
 The model is asked to think it through and finish with a line reading
 "FINAL ANSWER: X". The response is only ever trusted for its LAST such
@@ -28,6 +39,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import json
+import pathlib
 import re
 from dataclasses import dataclass, field
 
@@ -56,6 +68,12 @@ class Question:
 
 
 def load_questions(path: str) -> list:
+    if pathlib.Path(path).suffix.lower() == ".json":
+        return _load_json_bank(path)
+    return _load_markdown_bank(path)
+
+
+def _load_json_bank(path: str) -> list:
     with open(path) as f:
         raw = json.load(f)
     questions = []
@@ -69,6 +87,72 @@ def load_questions(path: str) -> list:
                 answer=item["answer"].strip().upper(),
             )
         )
+    return questions
+
+
+_QUESTIONS_SECTION_RE = re.compile(r"##\s*QUESTIONS.*?\n(.*?)(?=\n##\s*ANSWER KEY|\Z)", re.DOTALL | re.IGNORECASE)
+_ANSWER_KEY_SECTION_RE = re.compile(r"##\s*ANSWER KEY.*?\n(.*)", re.DOTALL | re.IGNORECASE)
+_ANSWER_ENTRY_RE = re.compile(r"(\d+)-([A-D])")
+_CATEGORY_HEADING_RE = re.compile(r"^###\s+(.*)$")
+_QUESTION_LINE_RE = re.compile(r"^(\d+)\.\s+(.*)$")
+_OPTION_SPLIT_RE = re.compile(r"\s{2,}(?=[A-D]\.\s)")
+_OPTION_RE = re.compile(r"^[A-D]\.\s*(.*)$")
+
+
+def _load_markdown_bank(path: str) -> list:
+    text = pathlib.Path(path).read_text()
+
+    q_match = _QUESTIONS_SECTION_RE.search(text)
+    if not q_match:
+        raise ValueError(f"No '## QUESTIONS' section found in {path}")
+
+    key_match = _ANSWER_KEY_SECTION_RE.search(text)
+    if not key_match:
+        raise ValueError(f"No '## ANSWER KEY' section found in {path}")
+    answer_key = {int(n): letter.upper() for n, letter in _ANSWER_ENTRY_RE.findall(key_match.group(1))}
+
+    category = "uncategorized"
+    questions = []
+    for line in q_match.group(1).splitlines():
+        line = line.strip()
+        if not line:
+            continue
+
+        heading_match = _CATEGORY_HEADING_RE.match(line)
+        if heading_match:
+            category = heading_match.group(1).strip()
+            continue
+
+        q_line_match = _QUESTION_LINE_RE.match(line)
+        if not q_line_match:
+            continue
+
+        num = int(q_line_match.group(1))
+        parts = _OPTION_SPLIT_RE.split(q_line_match.group(2))
+        if len(parts) != 5:
+            raise ValueError(f"Expected 4 options for question {num} in {path}, got {len(parts) - 1}: {line!r}")
+
+        question_text, *option_parts = parts
+        options = []
+        for opt in option_parts:
+            opt_match = _OPTION_RE.match(opt)
+            if not opt_match:
+                raise ValueError(f"Malformed option for question {num} in {path}: {opt!r}")
+            options.append(opt_match.group(1).strip())
+
+        if num not in answer_key:
+            raise ValueError(f"No answer key entry for question {num} in {path}")
+
+        questions.append(
+            Question(
+                id=f"q{num}",
+                category=category,
+                question=question_text.strip(),
+                options=options,
+                answer=answer_key[num],
+            )
+        )
+
     return questions
 
 

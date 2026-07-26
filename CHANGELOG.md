@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- MMLU question banks can now also be loaded from a plain-text `.md`/`.txt`
+  format (category headings + numbered question lines + a separate
+  answer key section), alongside the existing `.json` format, dispatched
+  by file extension.
 - Rich-based terminal display styled after `tool-eval-bench`'s UI: a
   live progress bar with a running pass/fail tally, a colored
   category/constraint breakdown table, and a boxed final summary panel
