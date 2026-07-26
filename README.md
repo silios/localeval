@@ -198,7 +198,7 @@ python -m localeval bench --pp 2048 --tg 128 --depth "0,4096,8192,16384" --trial
 | `--retries` | `2` | Retries on transient request failures (connection error, non-200, malformed response) - never on a real response, including a truncated one |
 | `--retry-backoff` | `1.0` | Seconds before the first retry, doubling each subsequent attempt |
 | `--system-prompt` | `""` | Override the system prompt for all requests. For mmlu, the default instructs the model to output `FINAL ANSWER: X` - if you override it, include that instruction yourself |
-| `--prompt-file` | `""` | Read the system prompt from a file (takes precedence over `--system-prompt` if both given) |
+| `--prompt-file` | `""` | Read the system prompt from a file (`--system-prompt` takes precedence if both are given) |
 
 ### Timing metrics
 
