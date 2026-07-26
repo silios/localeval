@@ -265,7 +265,7 @@ def write_global_report(run_dir: pathlib.Path, entries: list, elapsed_s: float) 
             rel_report = pathlib.Path(e["report_path"]).relative_to(run_dir)
         except ValueError:
             rel_report = e["report_path"]
-        lines.append(f"| {e['mode']} | {f['earned']}/{f['total']} | {display.rating_for(sub_pct)} | `{rel_report}` |")
+        lines.append(f"| {e['mode']} | {f['earned']}/{f['total']} | {display.rating_for(sub_pct)} | [report]({rel_report}) |")
     lines.append("")
 
     lines.append("Each mode's own report (linked above) has the full per-item breakdown; this file is only the cross-mode rollup.")

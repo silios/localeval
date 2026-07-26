@@ -20,6 +20,17 @@ explicit truncation detection via `finish_reason`, and answer extraction
 that only ever trusts the *last* `FINAL ANSWER: X` line in a response -
 never the first letter-like token anywhere in the text.
 
+## What it looks like
+
+`localeval all` running MMLU, code, and IFEval against a local model:
+
+![localeval all terminal output](assets/localeval-all-output.svg)
+
+Each mode gets a live progress bar, a category/constraint breakdown
+table, and a final summary panel with a star rating, pass/fail/error
+badges, per-item latency (p50/p95 TTFT and tokens/sec), and a link to
+the full per-run report.
+
 ## Stack
 
 Python 3.11+, `requests`, `rich` (terminal output), standard library
