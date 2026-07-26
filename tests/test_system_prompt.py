@@ -1,7 +1,9 @@
 """Tests for --system-prompt / --prompt-file override."""
 
+import argparse
 import pathlib
 
+from localeval import __main__ as cli
 from localeval import mmlu, code, ifeval
 from localeval.client import ChatConfig, ChatResult
 
@@ -117,3 +119,19 @@ def test_ifeval_no_system_prompt_default(monkeypatch):
 
     # No system prompt → first message is user
     assert sent_messages[0]["role"] == "user"
+
+
+def test_run_config_dict_persists_system_prompt_and_api_key():
+    """config.json must record system_prompt and api_key - resume rebuilds
+    ChatConfig from this file, so anything missing here is silently lost
+    on resume."""
+    args = argparse.Namespace(
+        base_url="http://localhost:8080", model="test-model", api_key="k-123",
+        max_tokens=4096, timeout=120, concurrency=1, retries=2, retry_backoff=1.0,
+        system_prompt="Custom prompt.", prompt_file=None,
+    )
+    config = cli.build_chat_config(args)
+    cfg = cli.run_config_dict(args, "mmlu", config)
+
+    assert cfg["system_prompt"] == "Custom prompt."
+    assert cfg["api_key"] == "k-123"

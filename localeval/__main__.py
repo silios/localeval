@@ -31,13 +31,15 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--prompt-file", default=None, help="Read system prompt from a file")
 
 
-def build_chat_config(args) -> ChatConfig:
-    system_prompt = ""
+def _resolve_system_prompt(args, fallback: str = "") -> str:
     if args.system_prompt:
-        system_prompt = args.system_prompt
-    elif args.prompt_file:
-        system_prompt = pathlib.Path(args.prompt_file).read_text().strip()
+        return args.system_prompt
+    if args.prompt_file:
+        return pathlib.Path(args.prompt_file).read_text().strip()
+    return fallback
 
+
+def build_chat_config(args) -> ChatConfig:
     return ChatConfig(
         base_url=args.base_url,
         model=args.model,
@@ -46,20 +48,22 @@ def build_chat_config(args) -> ChatConfig:
         timeout=args.timeout,
         retries=args.retries,
         retry_backoff=args.retry_backoff,
-        system_prompt=system_prompt,
+        system_prompt=_resolve_system_prompt(args),
     )
 
 
-def run_config_dict(args, mode: str) -> dict:
+def run_config_dict(args, mode: str, config: ChatConfig) -> dict:
     return {
         "mode": mode,
         "base_url": args.base_url,
         "model": args.model,
+        "api_key": config.api_key,
         "max_tokens": args.max_tokens,
         "timeout": args.timeout,
         "concurrency": args.concurrency,
         "retries": args.retries,
         "retry_backoff": args.retry_backoff,
+        "system_prompt": config.system_prompt,
     }
 
 
@@ -72,7 +76,7 @@ def cmd_mmlu(args, run_dir: pathlib.Path = None) -> dict:
 
     if run_dir is None:
         run_dir = make_run_dir(pathlib.Path(args.runs_dir), "mmlu")
-    cfg = run_config_dict(args, "mmlu")
+    cfg = run_config_dict(args, "mmlu", config)
     cfg["questions_file"] = args.questions
     cfg["limit"] = args.limit
     write_config(run_dir, cfg)
@@ -119,14 +123,15 @@ def cmd_code(args, run_dir: pathlib.Path = None) -> dict:
 
     if run_dir is None:
         run_dir = make_run_dir(pathlib.Path(args.runs_dir), "code")
-    cfg = run_config_dict(args, "code")
+    scratch_root = pathlib.Path(args.scratch_dir) if args.scratch_dir else run_dir / "scratch"
+    scratch_root.mkdir(parents=True, exist_ok=True)
+
+    cfg = run_config_dict(args, "code", config)
     cfg["tasks_dir"] = args.tasks_dir
     cfg["verify_timeout"] = args.verify_timeout
     cfg["limit"] = args.limit
+    cfg["scratch_dir"] = str(scratch_root)
     write_config(run_dir, cfg)
-
-    scratch_root = pathlib.Path(args.scratch_dir) if args.scratch_dir else run_dir / "scratch"
-    scratch_root.mkdir(parents=True, exist_ok=True)
 
     writer = ResultsWriter(run_dir)
     start = time.monotonic()
@@ -163,7 +168,7 @@ def cmd_ifeval(args, run_dir: pathlib.Path = None) -> dict:
 
     if run_dir is None:
         run_dir = make_run_dir(pathlib.Path(args.runs_dir), "ifeval")
-    cfg = run_config_dict(args, "ifeval")
+    cfg = run_config_dict(args, "ifeval", config)
     cfg["cases_file"] = args.cases
     cfg["limit"] = args.limit
     write_config(run_dir, cfg)
@@ -255,7 +260,7 @@ class _NullWriter:
         pass
 
 
-def resume_run(run_dir: pathlib.Path, config: ChatConfig, concurrency: int, verify_timeout: int = None) -> dict:
+def resume_run(run_dir: pathlib.Path, config: ChatConfig, concurrency: int, verify_timeout: int = None, scratch_dir: pathlib.Path = None) -> dict:
     """Rerun only the errored items from an existing run, updating it in place.
 
     "Errored" means a request failure (network error, non-200, malformed
@@ -293,7 +298,12 @@ def resume_run(run_dir: pathlib.Path, config: ChatConfig, concurrency: int, veri
     elif mode == "code":
         tasks = code.load_tasks(cfg["tasks_dir"])
         subset = [t for t in tasks if t["name"] in errored_keys]
-        scratch_root = run_dir / "scratch"
+        if scratch_dir is not None:
+            scratch_root = scratch_dir
+        elif cfg.get("scratch_dir"):
+            scratch_root = pathlib.Path(cfg["scratch_dir"])
+        else:
+            scratch_root = run_dir / "scratch"
         scratch_root.mkdir(parents=True, exist_ok=True)
         vt = verify_timeout if verify_timeout is not None else cfg.get("verify_timeout", 120)
         _, new_records = code.run(config, subset, scratch_root, vt, writer, limit=None)
@@ -345,10 +355,12 @@ def cmd_resume(args) -> dict:
         timeout=args.timeout if args.timeout is not None else cfg["timeout"],
         retries=args.retries if args.retries is not None else cfg.get("retries", 2),
         retry_backoff=args.retry_backoff if args.retry_backoff is not None else cfg.get("retry_backoff", 1.0),
+        system_prompt=_resolve_system_prompt(args, fallback=cfg.get("system_prompt", "")),
     )
     concurrency = args.concurrency if args.concurrency is not None else cfg.get("concurrency", 1)
+    scratch_dir = pathlib.Path(args.scratch_dir) if args.scratch_dir else None
 
-    result = resume_run(run_dir, config, concurrency, verify_timeout=args.verify_timeout)
+    result = resume_run(run_dir, config, concurrency, verify_timeout=args.verify_timeout, scratch_dir=scratch_dir)
 
     if result["resumed"] == 0:
         print(f"Nothing to resume: no errored items in {run_dir}")
@@ -642,6 +654,9 @@ def main(argv=None) -> int:
     p_resume.add_argument("--retries", type=int, default=None, help="Override retries stored in the original run's config")
     p_resume.add_argument("--retry-backoff", type=float, default=None, help="Override retry backoff stored in the original run's config")
     p_resume.add_argument("--verify-timeout", type=int, default=None, help="Override verify timeout stored in the original run's config (code mode)")
+    p_resume.add_argument("--scratch-dir", default=None, help="Override the scratch dir stored in the original run's config (code mode)")
+    p_resume.add_argument("--system-prompt", default=None, help="Override the system prompt stored in the original run's config")
+    p_resume.add_argument("--prompt-file", default=None, help="Read a system prompt override from a file (takes precedence over the stored config if given)")
     p_resume.set_defaults(func=cmd_resume)
 
     p_compare = subparsers.add_parser("compare", help="Side-by-side diff of two run directories")

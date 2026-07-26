@@ -130,12 +130,16 @@ every other item is left untouched:
 python -m localeval resume runs/mmlu/20260726T193151Z
 ```
 
-Any shared option (`--base-url`, `--model`, `--max-tokens`, `--timeout`,
-`--concurrency`, `--retries`, `--retry-backoff`, and `--verify-timeout`
+Any shared option (`--base-url`, `--model`, `--api-key`, `--max-tokens`,
+`--timeout`, `--concurrency`, `--retries`, `--retry-backoff`,
+`--system-prompt`/`--prompt-file`, and `--verify-timeout`/`--scratch-dir`
 for `code`) can be overridden on resume; anything not passed falls back
-to what the original run's `config.json` used. If nothing is left in
-`error` state, `resume` does nothing and leaves the run directory
-untouched.
+to what the original run's `config.json` used - `config.json` now
+records `api_key`, `system_prompt`, and (for `code`) `scratch_dir`, so a
+run made with a custom prompt or a non-default scratch dir resumes with
+the same settings instead of silently reverting to defaults. If nothing
+is left in `error` state, `resume` does nothing and leaves the run
+directory untouched.
 
 ### Comparing two runs
 

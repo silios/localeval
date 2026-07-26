@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- `config.json` now records `api_key`, `system_prompt`, and (for `code`)
+  `scratch_dir`. Previously these were silently dropped, so `localeval
+  resume` on a run made with a custom `--system-prompt`/`--prompt-file`,
+  `--api-key`, or `--scratch-dir` would revert to the per-mode default
+  prompt, send no auth header, or write to the wrong scratch dir.
+  `resume` also gained `--system-prompt`/`--prompt-file`/`--scratch-dir`
+  overrides, matching the existing pattern for other options.
+
 ### Added
 
 - All requests are now sent with `stream: true` (SSE) instead of a
