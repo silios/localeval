@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `--dry-run --limit N` now uses the same stride-sampling
+  (`reporting.apply_limit`) as a real run, instead of a plain `[:N]`
+  slice. Previously `--dry-run --limit N` could preview a different
+  subset of the bank than what a real `--limit N` run would actually
+  send, defeating the point of dry-run as a pre-flight check.
+
 - `config.json` now records `api_key`, `system_prompt`, and (for `code`)
   `scratch_dir`. Previously these were silently dropped, so `localeval
   resume` on a run made with a custom `--system-prompt`/`--prompt-file`,

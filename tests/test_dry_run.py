@@ -147,6 +147,33 @@ def test_dry_run_reports_count(tmp_path, capsys):
     assert "2 questions" in captured.out
 
 
+def test_dry_run_limit_matches_real_run_stride_sample(tmp_path, capsys):
+    """--dry-run --limit N must preview the exact same subset a real
+    --limit N run would send - both use the same stride-sampling, not a
+    biased first-N slice, or dry-run stops being a useful pre-flight
+    check on what will actually be sent."""
+    from localeval import code, reporting
+    from localeval.__main__ import main
+
+    for i in range(10):
+        task_dir = tmp_path / f"task-{i}"
+        task_dir.mkdir()
+        (task_dir / "task.md").write_text(f"Task {i}")
+        (task_dir / "verify.sh").write_text("#!/bin/bash\nexit 0")
+
+    main(["code", "--tasks-dir", str(tmp_path), "--limit", "3", "--dry-run"])
+    captured = capsys.readouterr()
+
+    loaded = code.load_tasks(str(tmp_path))
+    expected_names = [t["name"] for t in reporting.apply_limit(loaded, 3)]
+    printed_names = [line.split()[0] for line in captured.out.splitlines() if line.strip().startswith("task-")]
+
+    # 10 items stride-sampled at limit=3 picks indices 0, 3, 6 - not the
+    # naive [:3] slice (task-0/1/2).
+    assert expected_names == ["task-0", "task-3", "task-6"]
+    assert printed_names == expected_names
+
+
 def test_dry_run_reports_malformed_input(tmp_path, capsys):
     """--dry-run catches malformed input and exits non-zero."""
     import pytest

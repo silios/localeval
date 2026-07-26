@@ -10,7 +10,7 @@ import time
 
 from . import bench, code, compare, display, ifeval, mmlu, report
 from .client import ChatConfig
-from .reporting import ResultsWriter, make_run_dir, score_fields, write_config, write_summary
+from .reporting import ResultsWriter, apply_limit, make_run_dir, score_fields, write_config, write_summary
 
 MODE_MODULES = {"mmlu": mmlu, "code": code, "ifeval": ifeval}
 
@@ -448,8 +448,7 @@ def _dry_run_mmlu(args) -> dict:
         print(f"error: failed to load question bank: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    if args.limit and args.limit < len(questions):
-        questions = questions[:args.limit]
+    questions = apply_limit(questions, args.limit)
 
     cats = {}
     for q in questions:
@@ -470,8 +469,7 @@ def _dry_run_code(args) -> dict:
         print(f"error: failed to load tasks: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    if args.limit and args.limit < len(tasks):
-        tasks = tasks[:args.limit]
+    tasks = apply_limit(tasks, args.limit)
 
     print(f"✓ {len(tasks)} tasks loaded from {args.tasks_dir}")
     for t in tasks:
@@ -486,8 +484,7 @@ def _dry_run_ifeval(args) -> dict:
         print(f"error: failed to load case file: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    if args.limit and args.limit < len(cases):
-        cases = cases[:args.limit]
+    cases = apply_limit(cases, args.limit)
 
     from .ifeval import CONSTRAINT_CHECKERS
 
