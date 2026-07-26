@@ -2,7 +2,11 @@
 the bundled sample banks with a fixed --limit, so a sanity check doesn't
 need --questions/--tasks-dir/--cases/--limit spelled out every time."""
 
-from localeval.__main__ import PRESET_LIMITS, main
+import json
+
+from localeval import bench, code, ifeval, mmlu
+from localeval.__main__ import PRESET_BENCH_DEPTH, PRESET_LIMITS, main
+from localeval.client import ChatResult
 
 
 def test_preset_limits_are_ascending():
@@ -51,14 +55,51 @@ def test_ultra_preset_dry_run_has_no_limit(capsys):
 
 def test_preset_does_not_send_requests_in_dry_run(monkeypatch, capsys):
     """--dry-run on a preset must never call chat_completion, same
-    guarantee as the underlying mmlu/code/ifeval --dry-run."""
+    guarantee as the underlying mmlu/code/ifeval --dry-run. Bench has no
+    dry-run mode of its own, so it must be skipped entirely rather than
+    silently hitting the server."""
     called = []
 
     def fake_chat(*args, **kwargs):
         called.append(1)
 
     monkeypatch.setattr("localeval.client.chat_completion", fake_chat)
+    monkeypatch.setattr("localeval.client.chat_completion_sync", fake_chat)
 
     main(["quick", "--dry-run"])
     capsys.readouterr()
     assert len(called) == 0
+
+
+def test_preset_runs_a_small_bench_before_the_capability_tests(tmp_path, monkeypatch, capsys):
+    """Every preset (not --dry-run) must run a small throughput bench
+    first and persist it under runs/bench/<ts>/, same as `localeval
+    bench` on its own - this is what lets `list`/`compare` see it later."""
+    def fake_sync(config, messages):
+        if config.max_tokens == 1:
+            return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 1}, "elapsed_ms": 50.0}
+        return {"ok": True, "usage": {"prompt_tokens": 100, "completion_tokens": 10}, "elapsed_ms": 150.0}
+
+    def fake_chat(config, messages):
+        return ChatResult(ok=True, content="FINAL ANSWER: A", finish_reason="stop")
+
+    monkeypatch.setattr(bench, "chat_completion_sync", fake_sync)
+    monkeypatch.setattr(mmlu, "chat_completion", fake_chat)
+    monkeypatch.setattr(code, "chat_completion", fake_chat)
+    monkeypatch.setattr(ifeval, "chat_completion", fake_chat)
+
+    main(["quick", "--runs-dir", str(tmp_path), "--max-tokens", "64", "--timeout", "5"])
+    capsys.readouterr()
+
+    bench_dirs = list((tmp_path / "bench").iterdir())
+    assert len(bench_dirs) == 1
+    bench_run_dir = bench_dirs[0]
+
+    assert (bench_run_dir / "config.json").exists()
+    assert (bench_run_dir / "summary.json").exists()
+
+    summary = json.loads((bench_run_dir / "summary.json").read_text())
+    depth_count = len(PRESET_BENCH_DEPTH.split(","))
+    assert len(summary["by_depth"]) == depth_count
+
+    assert list((tmp_path / "all").iterdir())  # mmlu/code/ifeval part still ran too

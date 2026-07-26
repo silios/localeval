@@ -652,7 +652,10 @@ def cmd_bench(args) -> dict:
 # sample banks with a fixed --limit, so a sanity check against a running
 # server doesn't need --questions/--tasks-dir/--cases/--limit spelled out
 # every time. Bank paths are relative to the project root, matching every
-# other example in the README.
+# other example in the README. Each preset also runs a small throughput
+# bench first (a few context depths, one trial each) as a baseline read
+# before the capability tests - skipped entirely on --dry-run, since bench
+# has no dry-run mode of its own and must never touch the server then.
 # ---------------------------------------------------------------------------
 
 PRESET_BANKS = {
@@ -663,13 +666,28 @@ PRESET_BANKS = {
 
 PRESET_LIMITS = {"quick": 10, "medium": 20, "long": 50, "ultra": None}
 
+PRESET_BENCH_DEPTH = "0,4096,8192"
+PRESET_BENCH_PP = 512
+PRESET_BENCH_TG = 64
+PRESET_BENCH_TRIALS = 1
+
 
 def cmd_preset(args) -> dict:
+    bench_result = None
+    if not args.dry_run:
+        args.pp = PRESET_BENCH_PP
+        args.tg = PRESET_BENCH_TG
+        args.depth = PRESET_BENCH_DEPTH
+        args.trials = PRESET_BENCH_TRIALS
+        bench_result = cmd_bench(args)
+
     args.questions = PRESET_BANKS["questions"]
     args.tasks_dir = PRESET_BANKS["tasks_dir"]
     args.cases = PRESET_BANKS["cases"]
     args.limit = PRESET_LIMITS[args.preset_tier]
-    return cmd_all(args)
+    all_result = cmd_all(args)
+
+    return {"bench": bench_result, "all": all_result}
 
 
 def main(argv=None) -> int:

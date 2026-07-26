@@ -86,7 +86,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   limit), so a sanity check against a running server doesn't need
   `--questions`/`--tasks-dir`/`--cases`/`--limit` spelled out every
   time. All shared options still apply; bank paths are not overridable
-  on these presets - use `all` directly for a custom bank.
+  on these presets - use `all` directly for a custom bank. Unless
+  `--dry-run` is given, each preset also runs a small throughput bench
+  first (3 context depths, 1 trial each, `--pp 512 --tg 64`), persisted
+  under `runs/bench/<timestamp>/` like a standalone `bench` run, as a
+  baseline read before the capability tests.
 
 - All requests are now sent with `stream: true` (SSE) instead of a
   blocking JSON response, so time-to-first-token (TTFT) and

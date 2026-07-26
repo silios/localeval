@@ -121,6 +121,13 @@ Any shared option (`--base-url`, `--max-tokens`, `--timeout`,
 need different bank paths, use `all` directly with `--questions`/
 `--tasks-dir`/`--cases`.
 
+Each preset also runs a small `localeval bench` first - 3 context
+depths (`0,4096,8192`), 1 trial each, `--pp 512 --tg 64` - as a quick
+throughput baseline before the capability tests, persisted the same as
+a standalone `bench` run (so it shows up in `list`/`compare` too).
+`--dry-run` skips the bench step entirely, since bench has no dry-run
+mode of its own and must never touch the server then.
+
 ### Concurrency - only helps if your server has multiple slots
 
 `--concurrency N` controls how many requests localeval keeps in flight.
@@ -425,6 +432,10 @@ Equivalent to `all --questions sample_data/mmlu-test-bank-200.md
 --limit N`, with `N` fixed per tier (`quick=10`, `medium=20`, `long=50`,
 `ultra`=unset/full banks). Bank paths are not overridable on these
 presets - use `all` directly for a custom bank.
+
+Unless `--dry-run` is given, each preset also runs `bench --depth
+"0,4096,8192" --trials 1 --pp 512 --tg 64` first, persisted under
+`runs/bench/<timestamp>/` exactly like a standalone `bench` run.
 
 ## Terminal output
 
