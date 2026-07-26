@@ -6,7 +6,7 @@ bars, star ratings), reused here for localeval's own three modes.
 
 from __future__ import annotations
 
-from rich.console import Console
+from rich.console import Console, Group
 from rich.panel import Panel
 from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
 from rich.table import Table
@@ -356,30 +356,30 @@ def print_list_runs(runs: list) -> None:
 
 
 def print_bench_results(results: list, model: str = "", depths: list = None, report_path=None) -> None:
-    """Print throughput benchmark results as a Rich table.
-
-    results: list of dicts from bench.run_benchmark()
+    """Print throughput benchmark results as a single bordered panel,
+    matching the final-summary panel style used by every other mode
+    (one box holding header info, the per-depth table, and the report
+    link) instead of a separate header panel plus a free-floating table.
     """
-    lines = [
-        f"[bold]Model:[/bold] {model or 'unknown'}",
-        f"[bold]Depths:[/bold] {depths or []}",
-        f"[bold]Runs:[/bold] {len(results)} total",
-    ]
-    if report_path is not None:
-        lines.append(f"[bold]Report:[/bold] {report_path}")
-    panel = Panel("\n".join(lines), title="⚡ Throughput Benchmark", border_style="purple")
-    console.print(panel)
-    console.print("")
+    header = "\n".join(
+        [
+            f"[bold]Model:[/bold] {model or 'unknown'}",
+            f"[bold]Depths:[/bold] {depths or []}",
+            f"[bold]Runs:[/bold] {len(results)} total",
+        ]
+    )
 
-    table = Table(title="Bench Results", title_style="bold", box=None)
+    table = Table(box=None)
     table.add_column("Depth")
     table.add_column("pp t/s", justify="right")
     table.add_column("tg t/s", justify="right")
     table.add_column("Total (ms)", justify="right")
     table.add_column("Tokens", justify="right")
 
+    errored = 0
     for r in results:
         if not r.get("ok"):
+            errored += 1
             table.add_row(
                 f"d{r['depth']}",
                 "-", "-", "-",
@@ -393,4 +393,12 @@ def print_bench_results(results: list, model: str = "", depths: list = None, rep
             tokens = f"{r['pp_tokens']}+{r['tg_tokens']}"
             table.add_row(depth_label, pp, tg, total, tokens)
 
-    console.print(table)
+    renderables = [header, "", table]
+    if report_path is not None:
+        renderables += ["", f"[bold]Report:[/bold] {report_path}"]
+
+    incomplete = errored > 0
+    title = "⚠️  Throughput Benchmark Incomplete" if incomplete else "⚡ Throughput Benchmark"
+    border_style = "red" if incomplete else "purple"
+    panel = Panel(Group(*renderables), title=title, border_style=border_style, expand=False)
+    console.print(panel)

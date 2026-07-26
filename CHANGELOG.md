@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `localeval bench`'s terminal output is now a single bordered panel
+  (header info, per-depth table, and report link all inside one box),
+  matching the final-summary panel style every other mode uses, instead
+  of a header panel followed by a separate free-floating table. A
+  failed trial now flips the panel to the same red/"Incomplete" styling
+  `print_final_panel` uses for errored runs.
+
 - Refreshed `assets/localeval-all-output.svg` to reflect the current
   code base (previously predated most of the code-task bank, the
   system-prompt override, and the border-color fix above). Added
