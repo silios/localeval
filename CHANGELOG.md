@@ -105,6 +105,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Server auto-detection: `--base-url` is no longer required to have a
+  value at parse time. If not given, `mmlu`/`code`/`ifeval`/`all`/
+  `bench`/the presets probe `localhost`, `127.0.0.1`, and this
+  machine's own LAN-facing IP (found via a routing trick, no packets
+  sent) on ports `8080`/`8081` (llama.cpp) and `1234` (LM Studio's
+  default), and use the first one that answers `GET /v1/models`. Exits
+  with a clear error if nothing responds, rather than defaulting to a
+  guess. `--base-url` also now accepts a bare `host:port` (`http://` is
+  assumed if no scheme is given). `resume` is unaffected - it still
+  always reuses the original run's stored `base_url` unless overridden
+  explicitly, and never auto-detects.
+
 - `localeval quick`/`medium`/`long`/`ultra`: shortcuts for `all` against
   the bundled sample banks (`sample_data/mmlu-test-bank-200.md`,
   `sample_data/code_tasks`, `sample_data/ifeval_sample.json`) at a fixed

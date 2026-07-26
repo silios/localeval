@@ -242,8 +242,8 @@ def test_cmd_bench_persists_run_to_runs_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(bench, "chat_completion_sync", fake_sync)
 
     exit_code = main([
-        "bench", "--runs-dir", str(tmp_path), "--pp", "100", "--tg", "20",
-        "--depth", "0", "--trials", "2",
+        "bench", "--base-url", "http://localhost:8080", "--runs-dir", str(tmp_path),
+        "--pp", "100", "--tg", "20", "--depth", "0", "--trials", "2",
     ])
     assert exit_code == 0
 

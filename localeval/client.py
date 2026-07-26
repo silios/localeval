@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import re
+import socket
 import time
 
 import requests
@@ -27,6 +29,78 @@ class ChatConfig:
     retries: int = 2
     retry_backoff: float = 1.0
     system_prompt: str = ""
+
+
+DEFAULT_DISCOVERY_PORTS = (8080, 8081, 1234)
+
+_URL_SCHEME_RE = re.compile(r"^https?://", re.IGNORECASE)
+
+
+def normalize_base_url(value: str) -> str:
+    """Accept a bare `host:port` (or just `host`) as shorthand for
+    `http://host:port` - `--base-url 192.168.1.50:8080` instead of
+    requiring the full `http://192.168.1.50:8080`. A value that already
+    has a scheme is returned unchanged.
+    """
+    if _URL_SCHEME_RE.match(value):
+        return value
+    return f"http://{value}"
+
+
+def _local_nic_ip():
+    """Best-effort LAN-facing IP of this machine, via a routing trick:
+    a UDP "connect" doesn't send any packets (UDP is connectionless) -
+    it only asks the OS which local address would be used to reach the
+    given remote, which works even with no actual connectivity. Returns
+    None if no route can be determined at all (e.g. no network).
+    """
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
+def discovery_hosts() -> list:
+    """localhost, 127.0.0.1, and this machine's own LAN-facing IP (if
+    determinable), deduplicated, in that order - covers a server bound
+    to loopback only, one bound to 0.0.0.0 (reachable via either), and
+    one bound specifically to the machine's NIC address.
+    """
+    hosts = ["localhost", "127.0.0.1"]
+    nic_ip = _local_nic_ip()
+    if nic_ip and nic_ip not in hosts:
+        hosts.append(nic_ip)
+    return hosts
+
+
+def discover_base_url(hosts=None, ports=DEFAULT_DISCOVERY_PORTS, timeout: float = 1.0):
+    """Probe each host:port combination in turn for an OpenAI-compatible
+    server (GET /v1/models), returning the first base URL that responds
+    with 200, or None if none do.
+
+    Used when --base-url isn't given, so `localeval quick` (etc.) can
+    find a llama.cpp server (8080, or 8081 if 8080 is in use) or LM
+    Studio (1234) without the caller having to know which host/port
+    their server happens to be on. Combinations are tried in order and
+    the first live one wins - this is a convenience default, not a load
+    balancer. `hosts` defaults to `discovery_hosts()` if not given.
+    """
+    if hosts is None:
+        hosts = discovery_hosts()
+    for host in hosts:
+        for port in ports:
+            url = f"http://{host}:{port}"
+            try:
+                resp = requests.get(f"{url}/v1/models", timeout=timeout)
+                if resp.status_code == 200:
+                    return url
+            except requests.RequestException:
+                continue
+    return None
 
 
 @dataclasses.dataclass

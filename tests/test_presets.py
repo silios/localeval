@@ -88,7 +88,7 @@ def test_preset_runs_a_small_bench_before_the_capability_tests(tmp_path, monkeyp
     monkeypatch.setattr(code, "chat_completion", fake_chat)
     monkeypatch.setattr(ifeval, "chat_completion", fake_chat)
 
-    main(["quick", "--runs-dir", str(tmp_path), "--max-tokens", "64", "--timeout", "5"])
+    main(["quick", "--base-url", "http://localhost:8080", "--runs-dir", str(tmp_path), "--max-tokens", "64", "--timeout", "5"])
     capsys.readouterr()
 
     bench_dirs = list((tmp_path / "bench").iterdir())

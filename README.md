@@ -1,7 +1,9 @@
 # localeval
 
-A small, self-contained CLI to benchmark local LLMs served via a llama.cpp
-OpenAI-compatible endpoint (default `http://localhost:8080`).
+A small, self-contained CLI to benchmark local LLMs served via any
+OpenAI-compatible endpoint (llama.cpp, LM Studio, etc.). If `--base-url`
+isn't given, it auto-detects a running server - see
+[Server auto-detection](#server-auto-detection).
 
 ## Why this exists
 
@@ -235,11 +237,37 @@ bench runs (with a throughput score instead of a pass/fail one), and
 t/s, overall and per depth, to compare throughput across models or
 server configs.
 
+### Server auto-detection
+
+If `--base-url` isn't given, `mmlu`/`code`/`ifeval`/`all`/`bench`/the
+presets probe `localhost`, `127.0.0.1`, and this machine's own LAN IP
+(auto-detected via routing, no packets sent) on ports `8080` (llama.cpp),
+`8081` (llama.cpp on a second instance), and `1234` (LM Studio's
+default), in that order, and use the first one that answers
+`GET /v1/models`. If none respond, it prints an error and exits rather
+than guessing:
+
+```bash
+python -m localeval quick --model my-model   # no --base-url needed
+```
+
+`--base-url` also accepts a bare `host:port` - `http://` is assumed if
+no scheme is given:
+
+```bash
+python -m localeval quick --base-url 192.168.1.50:8080 --model my-model
+```
+
+`resume` is the one exception: it always reuses the original run's
+`base_url` from `config.json` unless you pass `--base-url` explicitly -
+it never auto-detects, since the point of resume is reproducing the
+original run's settings.
+
 ### Shared options (all subcommands)
 
 | Flag | Default | Meaning |
 |---|---|---|
-| `--base-url` | `http://localhost:8080` | OpenAI-compatible server base URL |
+| `--base-url` | auto-detect | OpenAI-compatible server base URL, e.g. `http://192.168.1.50:8080` or bare `192.168.1.50:8080`. See [Server auto-detection](#server-auto-detection) |
 | `--model` | `""` | Model name, for logging only (not required by llama.cpp) |
 | `--api-key` | `""` | Bearer token, if the endpoint requires one |
 | `--max-tokens` | `4096` | `max_tokens` sent with every request. Never lower this to "speed things up" - it is the #1 thing that broke the previous harness. |

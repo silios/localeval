@@ -9,7 +9,7 @@ import sys
 import time
 
 from . import bench, code, compare, display, ifeval, mmlu, report
-from .client import ChatConfig
+from .client import ChatConfig, DEFAULT_DISCOVERY_PORTS, discover_base_url, normalize_base_url
 from .reporting import ResultsWriter, apply_limit, make_run_dir, score_fields, write_config, write_summary
 
 MODE_MODULES = {"mmlu": mmlu, "code": code, "ifeval": ifeval}
@@ -18,7 +18,15 @@ import fnmatch
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--base-url", default="http://localhost:8080", help="OpenAI-compatible base URL")
+    ports_str = ", ".join(str(p) for p in DEFAULT_DISCOVERY_PORTS)
+    parser.add_argument(
+        "--base-url", default=None,
+        help=(
+            "OpenAI-compatible base URL, e.g. http://192.168.1.50:8080 or just "
+            f"192.168.1.50:8080 (http:// is assumed). Default: auto-detect on "
+            f"localhost/127.0.0.1/this machine's LAN IP, ports {ports_str}"
+        ),
+    )
     parser.add_argument("--model", default="", help="Model name, for logging only")
     parser.add_argument("--api-key", default="", help="API key, if the endpoint requires one")
     parser.add_argument("--max-tokens", type=int, default=4096, help="max_tokens per request")
@@ -40,6 +48,21 @@ def _resolve_system_prompt(args, fallback: str = "") -> str:
 
 
 def build_chat_config(args) -> ChatConfig:
+    if args.base_url is None:
+        discovered = discover_base_url()
+        if discovered is None:
+            ports_str = ", ".join(str(p) for p in DEFAULT_DISCOVERY_PORTS)
+            print(
+                f"error: no --base-url given and no server responded on localhost/127.0.0.1/this "
+                f"machine's LAN IP, ports {ports_str} - pass --base-url explicitly",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        print(f"(auto-detected server at {discovered})")
+        args.base_url = discovered
+    else:
+        args.base_url = normalize_base_url(args.base_url)
+
     return ChatConfig(
         base_url=args.base_url,
         model=args.model,
@@ -348,7 +371,7 @@ def cmd_resume(args) -> dict:
         cfg = json.load(f)
 
     config = ChatConfig(
-        base_url=args.base_url if args.base_url is not None else cfg["base_url"],
+        base_url=normalize_base_url(args.base_url) if args.base_url is not None else cfg["base_url"],
         model=args.model if args.model is not None else cfg["model"],
         api_key=args.api_key if args.api_key is not None else cfg.get("api_key", ""),
         max_tokens=args.max_tokens if args.max_tokens is not None else cfg["max_tokens"],
